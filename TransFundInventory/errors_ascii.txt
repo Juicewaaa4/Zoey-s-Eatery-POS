@@ -1,0 +1,8 @@
+C:\Program Files\dotnet\sdk\8.0.419\Microsoft.Common.CurrentVersion.targets(5321,5): error MSB3027: Could not copy "C:\Transfund Inventory\TransFundInventory\obj\Debug\net8.0-windows\apphost.exe" to "bin\Debug\net8.0-windows\TransFundInventory.exe". Exceeded retry count of 10. Failed. The file is locked by: "TransFundInventory (16716)" [C:\Transfund Inventory\TransFundInventory\TransFundInventory.csproj]
+C:\Program Files\dotnet\sdk\8.0.419\Microsoft.Common.CurrentVersion.targets(5321,5): error MSB3021: Unable to copy file "C:\Transfund Inventory\TransFundInventory\obj\Debug\net8.0-windows\apphost.exe" to "bin\Debug\net8.0-windows\TransFundInventory.exe". The process cannot access the file 'C:\Transfund Inventory\TransFundInventory\bin\Debug\net8.0-windows\TransFundInventory.exe' because it is being used by another process. [C:\Transfund Inventory\TransFundInventory\TransFundInventory.csproj]
+
+Build FAILED.
+    16 Warning(s)
+    2 Error(s)
+
+Time Elapsed 00:00:14.23
