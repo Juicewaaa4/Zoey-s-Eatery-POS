@@ -205,12 +205,7 @@ namespace TransFundInventory.Forms
             btnStockIO.Click += (s, e) => { SetActiveButton(btnStockIO); ShowStockTransactions(); };
             if (section == "Eatery") btnStockIO.Visible = false;
             
-            Button? btnSoftDrinksStock = null;
-            if (section == "Eatery")
-            {
-                btnSoftDrinksStock = CreateMenuButton("🥤  Drinks Stock");
-                btnSoftDrinksStock.Click += (s, e) => { SetActiveButton(btnSoftDrinksStock); SwitchContent(new SoftDrinksStockControl()); };
-            }
+            // Removed Drinks Stock as requested
 
             Button? btnReports = null;
             if (SessionManager.IsAdmin)
@@ -331,7 +326,7 @@ namespace TransFundInventory.Forms
             if (btnUsers != null) panelSidebar.Controls.Add(btnUsers);
             if (btnAuditLog != null) panelSidebar.Controls.Add(btnAuditLog);
             if (btnReports != null) panelSidebar.Controls.Add(btnReports);
-            if (btnSoftDrinksStock != null) panelSidebar.Controls.Add(btnSoftDrinksStock);
+            // btnSoftDrinksStock removed
             panelSidebar.Controls.Add(btnStockIO);
             if (btnCategories != null) panelSidebar.Controls.Add(btnCategories);
             if (btnProducts != null) panelSidebar.Controls.Add(btnProducts);

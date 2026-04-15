@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
@@ -15,6 +16,7 @@ namespace TransFundInventory.Forms
         private readonly CategoryRepository _categoryRepo = new();
         private readonly AuditLogRepository _auditRepo = new();
         private ComboBox cmbCategory = null!;
+        private TextBox txtSearch = null!;
         private int _selectedCategoryId = 0;
 
         public SoftDrinksStockControl()
@@ -56,11 +58,25 @@ namespace TransFundInventory.Forms
             {
                 DropDownStyle = ComboBoxStyle.DropDownList,
                 Font = new Font("Segoe UI", 12),
-                Width = 300,
+                Width = 250,
                 Dock = DockStyle.Left
             };
             cmbCategory.SelectedIndexChanged += CmbCategory_SelectedIndexChanged;
             panelTop.Controls.Add(cmbCategory);
+
+            var panelSpacer = new Panel { Width = 15, Dock = DockStyle.Left };
+            panelTop.Controls.Add(panelSpacer);
+
+            txtSearch = new TextBox
+            {
+                Font = new Font("Segoe UI", 12),
+                Width = 300,
+                Dock = DockStyle.Left,
+                PlaceholderText = "🔍 Search soft drinks...",
+                BorderStyle = BorderStyle.FixedSingle
+            };
+            txtSearch.TextChanged += TxtSearch_TextChanged;
+            panelTop.Controls.Add(txtSearch);
 
             var panelGrid = new Panel
             {
@@ -76,6 +92,8 @@ namespace TransFundInventory.Forms
                 BorderStyle = BorderStyle.None,
                 AllowUserToAddRows = false,
                 AllowUserToDeleteRows = false,
+                AllowUserToResizeColumns = false,
+                AllowUserToResizeRows = false,
                 ReadOnly = true,
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect,
@@ -134,15 +152,27 @@ namespace TransFundInventory.Forms
             if (cmbCategory.SelectedItem is Category cat)
             {
                 _selectedCategoryId = cat.Id;
+                txtSearch.Clear(); // reset search when category changes
                 LoadProducts();
             }
         }
 
+        private void TxtSearch_TextChanged(object? sender, EventArgs e)
+        {
+            LoadProducts();
+        }
+
         private void LoadProducts()
         {
-            var products = _selectedCategoryId > 0 
+            IEnumerable<Product> products = _selectedCategoryId > 0 
                 ? _productRepo.Search("", _selectedCategoryId) 
                 : _productRepo.GetAll();
+
+            var searchTerm = txtSearch.Text.Trim().ToLower();
+            if (!string.IsNullOrEmpty(searchTerm))
+            {
+                products = products.Where(p => p.Name.ToLower().Contains(searchTerm));
+            }
                 
             dgvProducts.DataSource = products.Select(p => new
             {

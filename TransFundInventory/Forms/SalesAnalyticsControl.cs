@@ -128,6 +128,8 @@ namespace TransFundInventory.Forms
                 BorderStyle = BorderStyle.None,
                 AllowUserToAddRows = false,
                 AllowUserToDeleteRows = false,
+                AllowUserToResizeColumns = false,
+                AllowUserToResizeRows = false,
                 ReadOnly = true,
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
                 RowHeadersVisible = false,
@@ -264,6 +266,11 @@ namespace TransFundInventory.Forms
             plotSalesTrend.Plot.XLabel("Date");
             plotSalesTrend.Plot.YLabel("Sales (₱)");
             plotSalesTrend.Refresh();
+
+            // Force immediate UI refresh
+            dgvTopProducts.Refresh();
+            this.Invalidate();
+            this.Update();
         }
 
         private void ExportSalesExcel()

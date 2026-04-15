@@ -54,7 +54,11 @@ namespace TransFundInventory.Forms
                 Font = new Font("Segoe UI", 11),
                 Margin = new Padding(0, 3, 0, 0) // Push down slightly to align with button
             };
-            dtpFilterDate.ValueChanged += (s, e) => LoadDashboardData(dtpFilterDate.Value);
+            dtpFilterDate.ValueChanged += (s, e) =>
+            {
+                LoadDashboardData(dtpFilterDate.Value);
+                this.Refresh();
+            };
 
             var btnExport = new Button
             {
@@ -71,21 +75,6 @@ namespace TransFundInventory.Forms
             btnExport.FlatAppearance.BorderSize = 0;
             btnExport.Click += (s, e) => ExportDashboardSales();
 
-            var btnRefresh = new Button
-            {
-                Text = "🔄 Refresh",
-                Width = 110,
-                Height = 33,
-                Margin = new Padding(10, 0, 0, 0),
-                Font = new Font("Segoe UI", 9, FontStyle.Bold),
-                ForeColor = Color.White,
-                BackColor = Color.FromArgb(60, 140, 210),
-                FlatStyle = FlatStyle.Flat,
-                Cursor = Cursors.Hand
-            };
-            btnRefresh.FlatAppearance.BorderSize = 0;
-            btnRefresh.Click += (s, e) => LoadDashboardData(dtpFilterDate.Value);
-
             var rightControls = new FlowLayoutPanel
             {
                 Dock = DockStyle.Right,
@@ -94,7 +83,6 @@ namespace TransFundInventory.Forms
                 WrapContents = false,
                 Padding = new Padding(0, 2, 0, 0)
             };
-            rightControls.Controls.Add(btnRefresh);
             rightControls.Controls.Add(dtpFilterDate);
             rightControls.Controls.Add(btnExport);
 
@@ -121,7 +109,7 @@ namespace TransFundInventory.Forms
             lblTodaySales = (Label)card4.Controls[0];
             lblSalesCardTitle = (Label)card4.Controls[1];
             
-            lblSalesBreakdown = new Label { Text = "Cash: ₱0.00 | GCash: ₱0.00", Font = new Font("Segoe UI", 8, FontStyle.Bold), ForeColor = Color.Gray, Dock = DockStyle.Bottom, Height = 20, TextAlign = ContentAlignment.MiddleCenter };
+            lblSalesBreakdown = new Label { Text = "Cash: ₱0.00", Font = new Font("Segoe UI", 8, FontStyle.Bold), ForeColor = Color.Gray, Dock = DockStyle.Bottom, Height = 20, TextAlign = ContentAlignment.MiddleCenter };
             card4.Controls.Add(lblSalesBreakdown);
             lblSalesBreakdown.SendToBack(); // So it docks properly at bottom
 
@@ -186,6 +174,8 @@ namespace TransFundInventory.Forms
                 BorderStyle = BorderStyle.None,
                 AllowUserToAddRows = false,
                 AllowUserToDeleteRows = false,
+                AllowUserToResizeColumns = false,
+                AllowUserToResizeRows = false,
                 ReadOnly = true,
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect,
@@ -318,8 +308,7 @@ namespace TransFundInventory.Forms
                 
                 var todaySalesList = salesRepo.GetAllSales(targetDate, targetDate);
                 double cash = todaySalesList.Where(s => s.PaymentMethod == "Cash").Sum(s => s.TotalAmount);
-                double gcash = todaySalesList.Where(s => s.PaymentMethod == "GCash").Sum(s => s.TotalAmount);
-                lblSalesBreakdown.Text = $"Cash: ₱{cash:N2}  |  GCash: ₱{gcash:N2}";
+                lblSalesBreakdown.Text = $"Cash: ₱{cash:N2}";
 
                 if (filterDate.HasValue && filterDate.Value.Date != DateTime.Today)
                 {
@@ -345,6 +334,10 @@ namespace TransFundInventory.Forms
                 {
                     LoadCategorySalesChart(chartCategorySales, targetDate);
                 }
+
+                // Force UI refresh
+                this.Invalidate();
+                this.Update();
             }
             catch (Exception ex)
             {
@@ -373,8 +366,7 @@ namespace TransFundInventory.Forms
                     Date = s.TransactionDate,
                     ReceiptNo = s.OrderNumber,
                     Cashier = s.UserName,
-                    Payment = s.PaymentMethod ?? "Cash",
-                    RefNo = s.ReferenceNumber ?? "",
+                    Payment = "Cash",
                     Total = s.TotalAmount,
                     Tendered = s.CashTendered,
                     Change = s.ChangeAmount

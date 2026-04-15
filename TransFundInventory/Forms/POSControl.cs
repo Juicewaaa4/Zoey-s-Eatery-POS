@@ -20,10 +20,7 @@ namespace TransFundInventory.Forms
         private Label lblChange = null!;
         private TextBox txtCustomer = null!;
         private CheckBox chkAutoPrint = null!;
-        private RadioButton rbCash = null!;
-        private RadioButton rbGCash = null!;
-        private TextBox txtReferenceNo = null!;
-        private Label lblReferenceNo = null!;
+        private CheckBox chkPrintDuplicate = null!;
         private FlowLayoutPanel pnlFastCash = null!;
         private Label lblTendered = null!;
 
@@ -146,6 +143,8 @@ namespace TransFundInventory.Forms
                 BorderStyle = BorderStyle.FixedSingle,
                 AllowUserToAddRows = false,
                 AllowUserToDeleteRows = false,
+                AllowUserToResizeColumns = false,
+                AllowUserToResizeRows = false,
                 ReadOnly = true,
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect,
@@ -196,6 +195,8 @@ namespace TransFundInventory.Forms
                 BorderStyle = BorderStyle.FixedSingle,
                 AllowUserToAddRows = false,
                 AllowUserToDeleteRows = false,
+                AllowUserToResizeColumns = false,
+                AllowUserToResizeRows = false,
                 AutoGenerateColumns = false,
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect,
@@ -211,19 +212,28 @@ namespace TransFundInventory.Forms
             dgvCart.EnableHeadersVisualStyles = false;
 
             dgvCart.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Name", HeaderText = isEatery ? "Item" : "Product", ReadOnly = true, FillWeight = 150 });
-            dgvCart.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Price", HeaderText = "Price", ReadOnly = true, DefaultCellStyle = new DataGridViewCellStyle { Format = "N2" } });
+            dgvCart.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Price", HeaderText = "Price", ReadOnly = true, DefaultCellStyle = new DataGridViewCellStyle { Format = "P#,##0.00" } });
             
             var colMinus = new DataGridViewButtonColumn { Name = "btnMinus", HeaderText = "", Text = "➖", UseColumnTextForButtonValue = true, Width = 30, FlatStyle = FlatStyle.Flat };
             colMinus.DefaultCellStyle.BackColor = Color.FromArgb(240, 240, 240);
             dgvCart.Columns.Add(colMinus);
 
-            dgvCart.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Quantity", HeaderText = "Qty", Width = 50, DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleCenter } });
+            var colQty = new DataGridViewTextBoxColumn 
+            { 
+                Name = "colQty", 
+                DataPropertyName = "Quantity", 
+                HeaderText = "Qty ✎", 
+                Width = 60, 
+                ReadOnly = true,
+                DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleCenter, Font = new Font("Segoe UI", 10, FontStyle.Underline), ForeColor = Color.Blue } 
+            };
+            dgvCart.Columns.Add(colQty);
             
             var colPlus = new DataGridViewButtonColumn { Name = "btnPlus", HeaderText = "", Text = "➕", UseColumnTextForButtonValue = true, Width = 30, FlatStyle = FlatStyle.Flat };
             colPlus.DefaultCellStyle.BackColor = Color.FromArgb(240, 240, 240);
             dgvCart.Columns.Add(colPlus);
 
-            dgvCart.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Subtotal", HeaderText = "Subtotal", ReadOnly = true, DefaultCellStyle = new DataGridViewCellStyle { Format = "N2" } });
+            dgvCart.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Subtotal", HeaderText = "Subtotal", ReadOnly = true, DefaultCellStyle = new DataGridViewCellStyle { Format = "P#,##0.00" } });
             
             var colBtn = new DataGridViewButtonColumn { Name = "btnRemove", HeaderText = "", Text = "❌", UseColumnTextForButtonValue = true, Width = 40, FlatStyle = FlatStyle.Flat };
             colBtn.DefaultCellStyle.BackColor = Color.FromArgb(231, 76, 60);
@@ -233,6 +243,7 @@ namespace TransFundInventory.Forms
             dgvCart.DataSource = _cart;
             dgvCart.CellValueChanged += DgvCart_CellValueChanged;
             dgvCart.CellContentClick += DgvCart_CellContentClick;
+            dgvCart.CellClick += DgvCart_CellClick;
 
             // Checkout Panel (Bottom of right side)
             // Checkout Panel (Bottom of right side)
@@ -241,30 +252,14 @@ namespace TransFundInventory.Forms
             var lblCustomer = new Label { Text = "Customer (Opt):", Font = new Font("Segoe UI", 10), Location = new Point(20, 20), AutoSize = true };
             txtCustomer = new TextBox { Location = new Point(140, 16), Width = 190, Font = new Font("Segoe UI", 10) };
 
-            var lblPayment = new Label { Text = "Payment:", Font = new Font("Segoe UI", 10), Location = new Point(20, 56), AutoSize = true };
-            rbCash = new RadioButton { Text = "Cash", Font = new Font("Segoe UI", 10, FontStyle.Bold), Location = new Point(140, 54), Checked = true, AutoSize = true, ForeColor = Color.FromArgb(27, 94, 32) };
-            rbGCash = new RadioButton { Text = "GCash", Font = new Font("Segoe UI", 10, FontStyle.Bold), Location = new Point(220, 54), AutoSize = true, ForeColor = Color.FromArgb(52, 120, 246) };
-            
-            if (!isEatery) {
-                lblPayment.Visible = false;
-                rbGCash.Visible = false;
-                rbCash.Visible = false;
-            }
+            var lblTotalText = new Label { Text = "TOTAL DUE:", Font = new Font("Segoe UI", 16, FontStyle.Bold), Location = new Point(20, 50), AutoSize = true };
+            lblTotal = new Label { Text = "₱0.00", Font = new Font("Tahoma", 22, FontStyle.Bold), ForeColor = Color.FromArgb(39, 174, 96), Location = new Point(148, 45), AutoSize = true };
 
-            var lblTotalText = new Label { Text = "TOTAL DUE:", Font = new Font("Segoe UI", 16, FontStyle.Bold), Location = new Point(20, 90), AutoSize = true };
-            lblTotal = new Label { Text = "₱0.00", Font = new Font("Segoe UI", 24, FontStyle.Bold), ForeColor = Color.FromArgb(39, 174, 96), Location = new Point(140, 82), AutoSize = true };
-
-            lblTendered = new Label { Text = "Tendered [F8]:", Font = new Font("Segoe UI", 12), Location = new Point(20, 140), AutoSize = true };
-            nudTendered = new NumericUpDown { Location = new Point(140, 138), Width = 190, Font = new Font("Segoe UI", 14), Maximum = 9999999, DecimalPlaces = 2 };
+            lblTendered = new Label { Text = "Tendered [F8]:", Font = new Font("Segoe UI", 12), Location = new Point(20, 100), AutoSize = true };
+            nudTendered = new NumericUpDown { Location = new Point(140, 98), Width = 190, Font = new Font("Segoe UI", 14), Maximum = 9999999, DecimalPlaces = 2 };
             nudTendered.ValueChanged += NudTendered_ValueChanged;
 
-            lblReferenceNo = new Label { Text = "GCash OTP*:", Font = new Font("Segoe UI", 12), Location = new Point(20, 140), AutoSize = true, Visible = false };
-            txtReferenceNo = new TextBox { Location = new Point(140, 138), Width = 190, Font = new Font("Segoe UI", 12), Visible = false, MaxLength = 6 };
-            txtReferenceNo.KeyPress += (s, e) => {
-                if (!char.IsControl(e.KeyChar) && !char.IsDigit(e.KeyChar)) e.Handled = true;
-            };
-
-            pnlFastCash = new FlowLayoutPanel { Location = new Point(140, 175), Width = 190, Height = 40 };
+            pnlFastCash = new FlowLayoutPanel { Location = new Point(140, 135), Width = 190, Height = 40 };
             int[] fastAmounts = { 50, 100, 200, 500, 1000 };
             foreach(int amt in fastAmounts) {
                 var btn = new Button { Text = amt.ToString(), Width = 35, Height = 25, FlatStyle = FlatStyle.Flat, ForeColor = Color.FromArgb(27,94,32), Cursor = Cursors.Hand, Font = new Font("Segoe UI", 7, FontStyle.Bold), Margin = new Padding(0,0,3,3) };
@@ -273,27 +268,27 @@ namespace TransFundInventory.Forms
                 pnlFastCash.Controls.Add(btn);
             }
 
-            var lblChangeText = new Label { Text = "CHANGE:", Font = new Font("Segoe UI", 12, FontStyle.Bold), Location = new Point(20, 220), AutoSize = true };
-            lblChange = new Label { Text = "₱0.00", Font = new Font("Segoe UI", 14, FontStyle.Bold), ForeColor = Color.FromArgb(52, 120, 246), Location = new Point(140, 220), AutoSize = true };
+            var lblChangeText = new Label { Text = "CHANGE:", Font = new Font("Segoe UI", 12, FontStyle.Bold), Location = new Point(20, 180), AutoSize = true };
+            lblChange = new Label { Text = "₱0.00", Font = new Font("Tahoma", 13, FontStyle.Bold), ForeColor = Color.FromArgb(52, 120, 246), Location = new Point(105, 180), AutoSize = true };
 
-            chkAutoPrint = new CheckBox { Text = "Auto-Print", Font = new Font("Segoe UI", 10, FontStyle.Bold), Location = new Point(20, 275), AutoSize = true, Checked = true, Cursor = Cursors.Hand, ForeColor = Color.FromArgb(27, 94, 32) };
-            var btnCheckout = new Button { Text = "💳 Checkout (F12)", Location = new Point(140, 260), Size = new Size(190, 55), Font = new Font("Segoe UI", 12, FontStyle.Bold), BackColor = Color.FromArgb(27, 94, 32), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+            chkAutoPrint = new CheckBox { Text = "Auto-Print", Font = new Font("Segoe UI", 10, FontStyle.Bold), Location = new Point(20, 225), AutoSize = true, Checked = true, Cursor = Cursors.Hand, ForeColor = Color.FromArgb(27, 94, 32) };
+            chkPrintDuplicate = new CheckBox 
+            { 
+                Text = "Print Cashier Copy (x2)", 
+                Font = new Font("Segoe UI", 9, FontStyle.Bold), 
+                Location = new Point(20, 255), 
+                AutoSize = true, 
+                Checked = SessionManager.CurrentSection == "Eatery", // Default ON for Eatery
+                Cursor = Cursors.Hand, 
+                ForeColor = Color.FromArgb(27, 94, 32),
+                Visible = SessionManager.CurrentSection == "Eatery" // Optionally hide for Store if not needed, but keep visible
+            };
+
+            var btnCheckout = new Button { Text = "💳 Checkout (F12)", Location = new Point(140, 280), Size = new Size(190, 50), Font = new Font("Segoe UI", 12, FontStyle.Bold), BackColor = Color.FromArgb(27, 94, 32), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
             btnCheckout.FlatAppearance.BorderSize = 0;
             btnCheckout.Click += BtnCheckout_Click;
 
-            rbCash.CheckedChanged += (s, e) => {
-                bool isCash = rbCash.Checked;
-                lblTendered.Visible = isCash;
-                nudTendered.Visible = isCash;
-                pnlFastCash.Visible = isCash;
-                lblReferenceNo.Visible = !isCash;
-                txtReferenceNo.Visible = !isCash;
-
-                if (!isCash) nudTendered.Value = (decimal)_cart.Sum(c => c.Subtotal);
-                UpdateTotals();
-            };
-
-            panelCheckout.Controls.AddRange(new Control[] { lblCustomer, txtCustomer, lblPayment, rbCash, rbGCash, lblTotalText, lblTotal, lblTendered, nudTendered, lblReferenceNo, txtReferenceNo, pnlFastCash, lblChangeText, lblChange, chkAutoPrint, btnCheckout });
+            panelCheckout.Controls.AddRange(new Control[] { lblCustomer, txtCustomer, lblTotalText, lblTotal, lblTendered, nudTendered, pnlFastCash, lblChangeText, lblChange, chkAutoPrint, chkPrintDuplicate, btnCheckout });
 
             panelRight.Controls.Add(dgvCart);
             panelRight.Controls.Add(lblTitleRight);
@@ -362,7 +357,7 @@ namespace TransFundInventory.Forms
                 if (dgvProducts.Columns.Contains("Stock")) dgvProducts.Columns["Stock"].Visible = false;
             }
 
-            dgvProducts.Columns["Price"].DefaultCellStyle.Format = "N2";
+            dgvProducts.Columns["Price"].DefaultCellStyle.Format = "P#,##0.00";
 
             // Ensure the Add to Cart button column exists
             if (!dgvProducts.Columns.Contains("AddButton"))
@@ -499,6 +494,52 @@ namespace TransFundInventory.Forms
             }
         }
 
+        private void DgvCart_CellClick(object? sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex >= 0 && e.ColumnIndex >= 0)
+            {
+                var colName = dgvCart.Columns[e.ColumnIndex].Name;
+                if (colName == "colQty")
+                {
+                    var item = _cart[e.RowIndex];
+                    bool isEatery = SessionManager.CurrentSection == "Eatery";
+                    int max = isEatery ? 999999 : item.MaxQuantity;
+                    
+                    using var prompt = new Form()
+                    {
+                        Width = 280,
+                        Height = 160,
+                        FormBorderStyle = FormBorderStyle.FixedDialog,
+                        Text = "Edit Quantity",
+                        StartPosition = FormStartPosition.CenterParent,
+                        MaximizeBox = false,
+                        MinimizeBox = false,
+                        BackColor = Color.White
+                    };
+                    var lbl = new Label() { Left = 20, Top = 15, Text = $"Enter quantity for {item.Name}:", AutoSize = true, Font = new Font("Segoe UI", 9) };
+                    var num = new NumericUpDown() { Left = 20, Top = 40, Width = 220, Minimum = 1, Maximum = max, Value = item.Quantity, Font = new Font("Segoe UI", 12) };
+                    var btnOk = new Button() { Text = "OK", Left = 165, Top = 80, Width = 75, Height = 30, DialogResult = DialogResult.OK, BackColor = Color.FromArgb(27, 94, 32), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9, FontStyle.Bold) };
+                    btnOk.FlatAppearance.BorderSize = 0;
+                    
+                    prompt.Controls.Add(lbl);
+                    prompt.Controls.Add(num);
+                    prompt.Controls.Add(btnOk);
+                    prompt.AcceptButton = btnOk;
+                    
+                    // Auto select the number for quick typing
+                    prompt.Shown += (s, ev) => { num.Focus(); num.Select(0, num.Value.ToString().Length); };
+
+                    if (prompt.ShowDialog() == DialogResult.OK)
+                    {
+                        item.Quantity = (int)num.Value;
+                        _cart.ResetBindings();
+                        UpdateTotals();
+                    }
+                }
+            }
+        }
+
+
         private void NudTendered_ValueChanged(object? sender, EventArgs e)
         {
             UpdateTotals();
@@ -508,15 +549,6 @@ namespace TransFundInventory.Forms
         {
             double total = _cart.Sum(c => c.Subtotal);
             lblTotal.Text = $"₱{total:N2}";
-
-            if (rbGCash != null && rbGCash.Checked)
-            {
-                // Sync nudTendered visually but it's hidden
-                if (nudTendered.Value != (decimal)total) nudTendered.Value = (decimal)total;
-                lblChange.Text = "₱0.00";
-                lblChange.ForeColor = Color.FromArgb(27, 94, 32);
-                return;
-            }
 
             double tendered = (double)nudTendered.Value;
             double change = tendered - total;
@@ -533,22 +565,12 @@ namespace TransFundInventory.Forms
                 return;
             }
 
-            if (rbGCash != null && rbGCash.Checked)
-            {
-                if (string.IsNullOrWhiteSpace(txtReferenceNo.Text) || txtReferenceNo.Text.Length != 6)
-                {
-                    MessageBox.Show("Please enter the 6-digit GCash OTP before checking out.", "Required", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    txtReferenceNo.Focus();
-                    return;
-                }
-            }
-
             double total = _cart.Sum(c => c.Subtotal);
-            double tendered = rbGCash != null && rbGCash.Checked ? total : (double)nudTendered.Value;
+            double tendered = (double)nudTendered.Value;
 
             if (tendered < total)
             {
-                MessageBox.Show($"Tendered amount (₱{tendered:N2}) is less than the total due (₱{total:N2}).", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show($"Tendered amount (P{tendered:N2}) is less than the total due (P{total:N2}).", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
@@ -560,8 +582,8 @@ namespace TransFundInventory.Forms
                 ChangeAmount = tendered - total,
                 CustomerName = string.IsNullOrWhiteSpace(txtCustomer.Text) ? null : txtCustomer.Text,
                 UserId = SessionManager.CurrentUser!.Id,
-                PaymentMethod = rbGCash != null && rbGCash.Checked ? "GCash" : "Cash",
-                ReferenceNumber = rbGCash != null && rbGCash.Checked ? txtReferenceNo.Text : null
+                PaymentMethod = "Cash",
+                ReferenceNumber = null
             };
 
             var saleItems = _cart.Select(c => new SalesItem
@@ -579,19 +601,21 @@ namespace TransFundInventory.Forms
                 _salesRepo.ProcessSale(sale, saleItems, SessionManager.CurrentUser.Id);
                 
                 // Show simple success message without PDF prompt
-                MessageBox.Show($"Checkout successful!\nOrder #: {sale.OrderNumber}\nChange: ₱{sale.ChangeAmount:N2}", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show($"Checkout successful!\nOrder #: {sale.OrderNumber}\nChange: P{sale.ChangeAmount:N2}", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
                 if (chkAutoPrint.Checked)
                 {
                     ReceiptPrinter.Print(sale, saleItems);
+                    if (chkPrintDuplicate.Checked)
+                    {
+                        ReceiptPrinter.Print(sale, saleItems, true); // true = isCashierCopy
+                    }
                 }
 
                 // Reset
                 _cart.Clear();
                 nudTendered.Value = 0;
                 txtCustomer.Text = "";
-                if (txtReferenceNo != null) txtReferenceNo.Text = "";
-                if (rbCash != null) rbCash.Checked = true;
                 LoadProducts(txtSearch.Text); // Refresh inventory quantities
                 UpdateTotals();
             }

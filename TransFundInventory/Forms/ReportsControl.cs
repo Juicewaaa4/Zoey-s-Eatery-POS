@@ -6,6 +6,7 @@ using System.Linq;
 using System.Drawing;
 using System.Windows.Forms;
 using System;
+using System.Globalization;
 
 namespace TransFundInventory.Forms
 {
@@ -15,12 +16,23 @@ namespace TransFundInventory.Forms
         private DataGridView dgvLowStock = null!;
         private DataGridView dgvSummary = null!;
         private DataGridView dgvHistory = null!;
+        private DataGridView dgvStockHistory = null!;
         private DateTimePicker dtpFrom = null!;
         private DateTimePicker dtpTo = null!;
+        private DateTimePicker dtpStockFrom = null!;
+        private DateTimePicker dtpStockTo = null!;
+        private DataGridView dgvShiftSales = null!;
+        private DateTimePicker dtpShiftDate = null!;
+        private DateTimePicker dtpMorningStart = null!;
+        private DateTimePicker dtpNightStart = null!;
+        private Label lblSalesTotal = null!;
+        private Label lblProfitTotal = null!;
+        private Label lblItemsSold = null!;
 
         private readonly ProductRepository _productRepo = new();
         private readonly StockTransactionRepository _transRepo = new();
         private readonly CategoryRepository _categoryRepo = new();
+        private readonly SalesRepository _salesRepo = new();
 
         public ReportsControl()
         {
@@ -98,11 +110,52 @@ namespace TransFundInventory.Forms
             tabSummary.Controls.Add(dgvSummary);
             tabSummary.Controls.Add(panelSummaryStats);
 
-            // Tab 3: Transaction History
-            var tabHistory = new TabPage("📋 Transaction History");
+            // =============================================
+            // Tab 3: Transaction History (SALES ONLY)
+            // =============================================
+            var tabHistory = new TabPage("💰 Transaction History");
             tabHistory.BackColor = Color.White;
             tabHistory.Padding = new Padding(10);
 
+            // Summary cards panel
+            var panelSalesCards = new Panel
+            {
+                Dock = DockStyle.Top,
+                Height = 55,
+                BackColor = Color.FromArgb(245, 247, 250),
+                Padding = new Padding(10, 5, 10, 5)
+            };
+
+            lblItemsSold = new Label
+            {
+                Text = "📦 Items Sold: 0",
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                ForeColor = Color.FromArgb(52, 73, 94),
+                Location = new Point(10, 17),
+                AutoSize = true
+            };
+
+            lblSalesTotal = new Label
+            {
+                Text = "💰 Gross: ₱0.00",
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                ForeColor = Color.FromArgb(39, 174, 96),
+                Location = new Point(200, 17),
+                AutoSize = true
+            };
+
+            lblProfitTotal = new Label
+            {
+                Text = "📈 Profit: ₱0.00",
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                ForeColor = Color.FromArgb(52, 120, 246),
+                Location = new Point(420, 17),
+                AutoSize = true
+            };
+
+            panelSalesCards.Controls.AddRange(new Control[] { lblItemsSold, lblSalesTotal, lblProfitTotal });
+
+            // Date filter + export
             var panelDateFilter = new Panel
             {
                 Dock = DockStyle.Top,
@@ -160,10 +213,189 @@ namespace TransFundInventory.Forms
 
             dgvHistory = CreateStyledGrid();
 
+            // Color code profit column
+            dgvHistory.CellFormatting += (s, e) =>
+            {
+                if (dgvHistory.Columns.Count > 0 && e.ColumnIndex >= 0)
+                {
+                    var colName = dgvHistory.Columns[e.ColumnIndex].Name;
+                    if (colName == "Profit" && e.Value is double profitVal)
+                    {
+                        e.CellStyle!.ForeColor = profitVal >= 0 ? Color.FromArgb(39, 174, 96) : Color.FromArgb(231, 76, 60);
+                        e.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+                    }
+                    if (colName == "Payment")
+                    {
+                        var val = e.Value?.ToString() ?? "";
+                        e.CellStyle!.ForeColor = Color.FromArgb(27, 94, 32);
+                        e.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+                    }
+                }
+            };
+
             tabHistory.Controls.Add(dgvHistory);
+            tabHistory.Controls.Add(panelSalesCards);
             tabHistory.Controls.Add(panelDateFilter);
 
-            tabControl.TabPages.AddRange(new TabPage[] { tabLowStock, tabSummary, tabHistory });
+            // =============================================
+            // Tab 4: Stock History (Stock IN/OUT only)
+            // =============================================
+            var tabStockHistory = new TabPage("🔄 Stock History");
+            tabStockHistory.BackColor = Color.White;
+            tabStockHistory.Padding = new Padding(10);
+
+            var panelStockDateFilter = new Panel
+            {
+                Dock = DockStyle.Top,
+                Height = 55,
+                BackColor = Color.FromArgb(245, 247, 250),
+                Padding = new Padding(10)
+            };
+
+            var lblStockFrom = new Label
+            {
+                Text = "From:",
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                ForeColor = Color.FromArgb(60, 70, 90),
+                Location = new Point(10, 18),
+                AutoSize = true
+            };
+
+            dtpStockFrom = new DateTimePicker
+            {
+                Location = new Point(55, 14),
+                Size = new Size(200, 28),
+                Font = new Font("Segoe UI", 9),
+                Format = DateTimePickerFormat.Short,
+                Value = DateTime.Now.AddMonths(-1)
+            };
+            dtpStockFrom.ValueChanged += (s, e) => LoadStockHistory();
+
+            var lblStockTo = new Label
+            {
+                Text = "To:",
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                ForeColor = Color.FromArgb(60, 70, 90),
+                Location = new Point(270, 18),
+                AutoSize = true
+            };
+
+            dtpStockTo = new DateTimePicker
+            {
+                Location = new Point(300, 14),
+                Size = new Size(200, 28),
+                Font = new Font("Segoe UI", 9),
+                Format = DateTimePickerFormat.Short,
+                Value = DateTime.Now
+            };
+            dtpStockTo.ValueChanged += (s, e) => LoadStockHistory();
+
+            var btnStockPdf = CreateExportButton("📄 Export PDF", Color.FromArgb(192, 57, 43));
+            var btnStockExcel = CreateExportButton("🟩 Export Excel", Color.FromArgb(39, 174, 96));
+            btnStockPdf.Location = new Point(530, 10);
+            btnStockExcel.Location = new Point(680, 10);
+            btnStockPdf.Click += (s, e) => ExportStockHistoryPdf();
+            btnStockExcel.Click += (s, e) => ExportStockHistoryExcel();
+
+            panelStockDateFilter.Controls.AddRange(new Control[] { lblStockFrom, dtpStockFrom, lblStockTo, dtpStockTo, btnStockPdf, btnStockExcel });
+
+            dgvStockHistory = CreateStyledGrid();
+
+            // Color code IN/OUT in stock history
+            dgvStockHistory.CellFormatting += (s, e) =>
+            {
+                if (dgvStockHistory.Columns.Count > 0 && e.ColumnIndex >= 0 && dgvStockHistory.Columns[e.ColumnIndex].Name == "Type")
+                {
+                    if (e.Value?.ToString() == "IN")
+                    {
+                        e.CellStyle!.ForeColor = Color.FromArgb(39, 174, 96);
+                        e.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+                    }
+                    else if (e.Value?.ToString() == "OUT")
+                    {
+                        e.CellStyle!.ForeColor = Color.FromArgb(231, 76, 60);
+                        e.CellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+                    }
+                }
+            };
+
+            tabStockHistory.Controls.Add(dgvStockHistory);
+            tabStockHistory.Controls.Add(panelStockDateFilter);
+
+            // =============================================
+            // Tab 5: Shift Sales Report
+            // =============================================
+            var tabShiftSales = new TabPage("📊 Shift Sales Report");
+            tabShiftSales.BackColor = Color.White;
+            tabShiftSales.Padding = new Padding(10);
+
+            // Row 1: Date and shift time filters
+            var panelShiftFilter = new Panel { Dock = DockStyle.Top, Height = 90, BackColor = Color.FromArgb(245, 247, 250), Padding = new Padding(10) };
+            
+            var lblShiftDate = new Label { Text = "Date:", Font = new Font("Segoe UI", 9, FontStyle.Bold), ForeColor = Color.FromArgb(60, 70, 90), Location = new Point(10, 12), AutoSize = true };
+            dtpShiftDate = new DateTimePicker { Location = new Point(55, 8), Size = new Size(130, 28), Font = new Font("Segoe UI", 9), Format = DateTimePickerFormat.Short, Value = DateTime.Today };
+            dtpShiftDate.ValueChanged += (s, e) => LoadShiftSales();
+
+            var lblMorningStart = new Label { Text = "Morning Start:", Font = new Font("Segoe UI", 9, FontStyle.Bold), ForeColor = Color.FromArgb(39, 174, 96), Location = new Point(200, 12), AutoSize = true };
+            dtpMorningStart = new DateTimePicker { Location = new Point(300, 8), Size = new Size(95, 28), Font = new Font("Segoe UI", 9), Format = DateTimePickerFormat.Custom, CustomFormat = "hh:mm tt", ShowUpDown = true, Value = DateTime.Today.AddHours(8) };
+            dtpMorningStart.ValueChanged += (s, e) => LoadShiftSales();
+
+            var lblNightStart = new Label { Text = "Night Start:", Font = new Font("Segoe UI", 9, FontStyle.Bold), ForeColor = Color.FromArgb(230, 126, 34), Location = new Point(410, 12), AutoSize = true };
+            dtpNightStart = new DateTimePicker { Location = new Point(498, 8), Size = new Size(95, 28), Font = new Font("Segoe UI", 9), Format = DateTimePickerFormat.Custom, CustomFormat = "hh:mm tt", ShowUpDown = true, Value = DateTime.Today.AddHours(16) };
+            dtpNightStart.ValueChanged += (s, e) => LoadShiftSales();
+
+            // Row 2: Export buttons — Morning & Night separate
+            var btnMorningExcel = new Button
+            {
+                Text = "☀️ Export Morning Shift",
+                Width = 180, Height = 32,
+                Location = new Point(10, 48),
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                ForeColor = Color.White,
+                BackColor = Color.FromArgb(39, 174, 96),
+                FlatStyle = FlatStyle.Flat,
+                Cursor = Cursors.Hand
+            };
+            btnMorningExcel.FlatAppearance.BorderSize = 0;
+            btnMorningExcel.Click += (s, e) => ExportShiftExcel("Morning");
+
+            var btnNightExcel = new Button
+            {
+                Text = "🌙 Export Night Shift",
+                Width = 180, Height = 32,
+                Location = new Point(200, 48),
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                ForeColor = Color.White,
+                BackColor = Color.FromArgb(230, 126, 34),
+                FlatStyle = FlatStyle.Flat,
+                Cursor = Cursors.Hand
+            };
+            btnNightExcel.FlatAppearance.BorderSize = 0;
+            btnNightExcel.Click += (s, e) => ExportShiftExcel("Night");
+
+            var btnBothExcel = new Button
+            {
+                Text = "📊 Export Both Shifts",
+                Width = 180, Height = 32,
+                Location = new Point(390, 48),
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                ForeColor = Color.White,
+                BackColor = Color.FromArgb(52, 73, 94),
+                FlatStyle = FlatStyle.Flat,
+                Cursor = Cursors.Hand
+            };
+            btnBothExcel.FlatAppearance.BorderSize = 0;
+            btnBothExcel.Click += (s, e) => ExportShiftExcel("Both");
+
+            panelShiftFilter.Controls.AddRange(new Control[] { 
+                lblShiftDate, dtpShiftDate, lblMorningStart, dtpMorningStart, lblNightStart, dtpNightStart,
+                btnMorningExcel, btnNightExcel, btnBothExcel 
+            });
+            dgvShiftSales = CreateStyledGrid();
+            tabShiftSales.Controls.Add(dgvShiftSales);
+            tabShiftSales.Controls.Add(panelShiftFilter);
+
+            tabControl.TabPages.AddRange(new TabPage[] { tabLowStock, tabSummary, tabHistory, tabStockHistory, tabShiftSales });
 
             this.Controls.Add(tabControl);
             this.Controls.Add(lblTitle);
@@ -187,13 +419,15 @@ namespace TransFundInventory.Forms
 
         private DataGridView CreateStyledGrid()
         {
-            var dgv = new DataGridView
+            var dgv = new DoubleBufferedDataGridView
             {
                 Dock = DockStyle.Fill,
                 BackgroundColor = Color.White,
                 BorderStyle = BorderStyle.None,
                 AllowUserToAddRows = false,
                 AllowUserToDeleteRows = false,
+                AllowUserToResizeColumns = false,
+                AllowUserToResizeRows = false,
                 ReadOnly = true,
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect,
@@ -218,6 +452,8 @@ namespace TransFundInventory.Forms
             LoadLowStock();
             LoadInventorySummary();
             LoadTransactionHistory();
+            LoadStockHistory();
+            LoadShiftSales();
         }
 
         private void LoadLowStock()
@@ -321,10 +557,66 @@ namespace TransFundInventory.Forms
             }
         }
 
+        /// <summary>
+        /// Loads ONLY sold items from SalesItems + SalesTransactions (no stock IN/OUT)
+        /// </summary>
         private void LoadTransactionHistory()
         {
-            var transactions = _transRepo.GetAll(dtpFrom.Value, dtpTo.Value);
-            dgvHistory.DataSource = transactions.Select(t => new
+            var (from, to) = NormalizeDateRange(dtpFrom.Value, dtpTo.Value);
+            var details = _salesRepo.GetSalesItemsDetail(from, to);
+
+            // Update summary cards
+            int totalItems = details.Sum(d => d.QtySold);
+            double totalSales = details.Sum(d => d.Subtotal);
+            double totalProfit = details.Sum(d => d.Profit);
+
+            lblItemsSold.Text = $"📦 Items Sold: {totalItems:N0}";
+            lblSalesTotal.Text = $"💰 Gross: ₱{totalSales:N2}";
+            lblProfitTotal.Text = $"📈 Profit: ₱{totalProfit:N2}";
+
+            dgvHistory.DataSource = details.Select(d => new
+            {
+                Date = DateTime.Parse(d.Date).ToString("yyyy-MM-dd"),
+                Time = DateTime.Parse(d.Date).ToString("hh:mm tt"), // 12-hour AM/PM format
+                Order = d.OrderNumber,
+                Product = d.ProductName,
+                Qty = d.QtySold,
+                Price = d.UnitPrice,
+                Subtotal = d.Subtotal,
+                Profit = d.Profit,
+                Payment = d.PaymentMethod,
+                Cashier = d.Cashier
+            }).ToList();
+
+            // Format currency columns
+            if (dgvHistory.Columns.Count > 0)
+            {
+                if (dgvHistory.Columns.Contains("Price"))
+                    dgvHistory.Columns["Price"].DefaultCellStyle.Format = "₱#,##0.00";
+                if (dgvHistory.Columns.Contains("Subtotal"))
+                    dgvHistory.Columns["Subtotal"].DefaultCellStyle.Format = "₱#,##0.00";
+                if (dgvHistory.Columns.Contains("Profit"))
+                    dgvHistory.Columns["Profit"].DefaultCellStyle.Format = "₱#,##0.00";
+            }
+
+            // Force immediate UI refresh
+            dgvHistory.Refresh();
+            this.Update();
+        }
+
+        /// <summary>
+        /// Loads ONLY manual stock IN/OUT records (excludes auto-generated "Sold" entries)
+        /// </summary>
+        private void LoadStockHistory()
+        {
+            var allTransactions = _transRepo.GetAll(dtpStockFrom.Value, dtpStockTo.Value);
+
+            // Filter OUT the auto-generated "Sold (Order #...)" entries so only manual stock adjustments show
+            var stockOnly = allTransactions
+                .Where(t => !t.Notes.StartsWith("Sold (Order"))
+                .ToList();
+
+            dgvStockHistory.DataSource = stockOnly.Select(t => new
             {
                 Date = t.TransactionDate,
                 Product = t.ProductName,
@@ -333,6 +625,10 @@ namespace TransFundInventory.Forms
                 t.Notes,
                 User = t.UserName
             }).ToList();
+
+            // Force immediate UI refresh
+            dgvStockHistory.Refresh();
+            this.Update();
         }
 
         // ================== EXPORT LOGIC ==================
@@ -398,6 +694,7 @@ namespace TransFundInventory.Forms
                 var categories = _categoryRepo.GetAll();
                 var products = _productRepo.GetAll();
                 bool isEatery = SessionManager.CurrentSection == "Eatery";
+                string summarySheetName;
 
                 if (isEatery)
                 {
@@ -410,7 +707,8 @@ namespace TransFundInventory.Forms
                             AvgPuhunan = catProducts.Count > 0 ? catProducts.Average(p => (double)p.CostPrice) : 0
                         };
                     }).ToList();
-                    ExportHelper.ExportToExcel(summary, "Menu Summary", path);
+                    summarySheetName = "Menu Summary";
+                    ExportHelper.ExportToExcel(summary, summarySheetName, path);
                 }
                 else
                 {
@@ -425,45 +723,299 @@ namespace TransFundInventory.Forms
                             LowStockItems = catProducts.Count(p => p.Quantity <= p.MinStockLevel)
                         };
                     }).ToList();
-                    ExportHelper.ExportToExcel(summary, "Inventory Summary", path);
+                    summarySheetName = "Inventory Summary";
+                    ExportHelper.ExportToExcel(summary, summarySheetName, path);
                 }
+
+                // Add detailed sold-items analytics sheet (all-time for current section)
+                var soldDetails = _salesRepo.GetSalesItemsDetail(DateTime.Today.AddYears(-20), DateTime.Today.AddDays(1));
+                var soldItemSummary = soldDetails
+                    .GroupBy(d => d.ProductName)
+                    .Select(g =>
+                    {
+                        var topCashier = g.GroupBy(x => x.Cashier)
+                            .OrderByDescending(x => x.Sum(y => y.QtySold))
+                            .Select(x => x.Key)
+                            .FirstOrDefault() ?? "N/A";
+
+                        DateTime lastSold = g
+                            .Select(x => DateTime.TryParse(x.Date, out var parsed) ? parsed : DateTime.MinValue)
+                            .Max();
+
+                        return new
+                        {
+                            Product = g.Key,
+                            QtySold = g.Sum(x => x.QtySold),
+                            Orders = g.Select(x => x.OrderNumber).Distinct().Count(),
+                            GrossSales = g.Sum(x => x.Subtotal),
+                            NetProfit = g.Sum(x => x.Profit),
+                            AvgUnitPrice = g.Average(x => x.UnitPrice),
+                            TopCashier = topCashier,
+                            LastSold = lastSold == DateTime.MinValue ? "N/A" : lastSold.ToString("yyyy-MM-dd hh:mm tt")
+                        };
+                    })
+                    .OrderByDescending(x => x.QtySold)
+                    .ToList();
+
+                ExportHelper.AddSheetToExcel(path, "Items Sold", soldItemSummary);
                 
                 MessageBox.Show("Excel Exported Successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
         }
 
+        // ===== Transaction History (Sales) Export =====
+
         private void ExportHistoryPdf()
         {
-            var trans = _transRepo.GetAll(dtpFrom.Value, dtpTo.Value);
-            if (trans.Count == 0) { MessageBox.Show("No transactions to export.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+            var (from, to) = NormalizeDateRange(dtpFrom.Value, dtpTo.Value);
+            var details = _salesRepo.GetSalesItemsDetail(from, to);
+            if (details.Count == 0) { MessageBox.Show("No sales data to export.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
             
-            var path = ExportHelper.ShowSaveDialog("PDF Files|*.pdf", "TransactionHistory.pdf");
+            var path = ExportHelper.ShowSaveDialog("PDF Files|*.pdf", $"SalesHistory_{from:yyyyMMdd}_{to:yyyyMMdd}.pdf");
             if (path != null)
             {
-                ExportHelper.ExportTransactionsToPdf(trans, path);
+                ExportHelper.ExportSalesHistoryPdf(details, from, to, path);
                 MessageBox.Show("PDF Exported Successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
         }
 
         private void ExportHistoryExcel()
         {
-            var trans = _transRepo.GetAll(dtpFrom.Value, dtpTo.Value);
-            if (trans.Count == 0) { MessageBox.Show("No transactions to export.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+            var (from, to) = NormalizeDateRange(dtpFrom.Value, dtpTo.Value);
+            var details = _salesRepo.GetSalesItemsDetail(from, to);
+            if (details.Count == 0) { MessageBox.Show("No sales data to export.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
             
-            var path = ExportHelper.ShowSaveDialog("Excel Files|*.xlsx", "TransactionHistory.xlsx");
+            var path = ExportHelper.ShowSaveDialog("Excel Files|*.xlsx", $"SalesHistory_{from:yyyyMMdd}_{to:yyyyMMdd}.xlsx");
             if (path != null)
             {
-                var list = trans.Select(t => new {
-                    Date = t.TransactionDate,
-                    Product = t.ProductName,
-                    Type = t.Type,
-                    Quantity = t.Quantity,
-                    Notes = t.Notes,
-                    ProcessedBy = t.UserName
-                }).ToList();
-                ExportHelper.ExportToExcel(list, "Transactions", path);
+                ExportHelper.ExportSalesHistoryExcel(details, from, to, path);
                 MessageBox.Show("Excel Exported Successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
         }
+
+        // ===== Stock History Export =====
+
+        private void ExportStockHistoryPdf()
+        {
+            var allTransactions = _transRepo.GetAll(dtpStockFrom.Value, dtpStockTo.Value);
+            var stockOnly = allTransactions.Where(t => !t.Notes.StartsWith("Sold (Order")).ToList();
+            if (stockOnly.Count == 0) { MessageBox.Show("No stock transactions to export.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+            
+            var path = ExportHelper.ShowSaveDialog("PDF Files|*.pdf", $"StockHistory_{dtpStockFrom.Value:yyyyMMdd}_{dtpStockTo.Value:yyyyMMdd}.pdf");
+            if (path != null)
+            {
+                ExportHelper.ExportTransactionsToPdf(stockOnly, path);
+                MessageBox.Show("PDF Exported Successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+
+        private void ExportStockHistoryExcel()
+        {
+            var allTransactions = _transRepo.GetAll(dtpStockFrom.Value, dtpStockTo.Value);
+            var stockOnly = allTransactions.Where(t => !t.Notes.StartsWith("Sold (Order")).ToList();
+            if (stockOnly.Count == 0) { MessageBox.Show("No stock transactions to export.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+            
+            var path = ExportHelper.ShowSaveDialog("Excel Files|*.xlsx", $"StockHistory_{dtpStockFrom.Value:yyyyMMdd}_{dtpStockTo.Value:yyyyMMdd}.xlsx");
+            if (path != null)
+            {
+                ExportHelper.ExportStockHistoryExcel(stockOnly, dtpStockFrom.Value, dtpStockTo.Value, path);
+                MessageBox.Show("Excel Exported Successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+        // ===== Shift Sales Report Export =====
+        private void LoadShiftSales()
+        {
+            if (dgvShiftSales == null) return;
+
+            DateTime shiftDate = dtpShiftDate.Value.Date;
+            DateTime nextDay = shiftDate.AddDays(1);
+
+            var details = _salesRepo.GetShiftSalesDetails(shiftDate, nextDay);
+            TimeSpan morningStart = dtpMorningStart.Value.TimeOfDay;
+            TimeSpan nightStart = dtpNightStart.Value.TimeOfDay;
+            var (morningDetails, nightDetails) = SplitShiftDetails(details, shiftDate, morningStart, nightStart);
+
+            var displayList = morningDetails
+                .Select(d => new { Shift = "☀️ Morning", Item = d })
+                .Concat(nightDetails.Select(d => new { Shift = "🌙 Night", Item = d }))
+                .Select(x => new
+                {
+                    Shift = x.Shift,
+                    Product = x.Item.ProductName,
+                    SellingPrice = x.Item.SellingPrice,
+                    Sold = x.Item.QtySold,
+                    GrossIncome = x.Item.GrossIncome,
+                    NetIncome = x.Item.NetIncome,
+                    Time = TryParseTransactionTime(x.Item.TransactionTime, out DateTime t)
+                        ? t.ToString("hh:mm tt")
+                        : x.Item.TransactionTime
+                })
+                .ToList();
+
+            dgvShiftSales.DataSource = displayList;
+
+            // Format currency columns and add shift color coding
+            if (dgvShiftSales.Columns.Count > 0)
+            {
+                if (dgvShiftSales.Columns.Contains("SellingPrice"))
+                    dgvShiftSales.Columns["SellingPrice"].DefaultCellStyle.Format = "₱#,##0.00";
+                if (dgvShiftSales.Columns.Contains("GrossIncome"))
+                    dgvShiftSales.Columns["GrossIncome"].DefaultCellStyle.Format = "₱#,##0.00";
+                if (dgvShiftSales.Columns.Contains("NetIncome"))
+                    dgvShiftSales.Columns["NetIncome"].DefaultCellStyle.Format = "₱#,##0.00";
+            }
+
+            // Color-code rows by shift
+            foreach (DataGridViewRow row in dgvShiftSales.Rows)
+            {
+                if (row.IsNewRow) continue;
+                var shiftVal = row.Cells["Shift"]?.Value?.ToString() ?? "";
+                if (shiftVal.Contains("Night"))
+                {
+                    row.DefaultCellStyle.BackColor = Color.FromArgb(255, 248, 235);
+                }
+                else
+                {
+                    row.DefaultCellStyle.BackColor = Color.FromArgb(235, 250, 240);
+                }
+            }
+
+            // Force immediate UI refresh
+            dgvShiftSales.Refresh();
+            this.Update();
+        }
+
+        private void ExportShiftExcel(string shiftType)
+        {
+            DateTime shiftDate = dtpShiftDate.Value.Date;
+            DateTime nextDay = shiftDate.AddDays(1);
+            var details = _salesRepo.GetShiftSalesDetails(shiftDate, nextDay);
+
+            if (details.Count == 0)
+            {
+                MessageBox.Show("No data to export.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            TimeSpan morningStart = dtpMorningStart.Value.TimeOfDay;
+            TimeSpan nightStart = dtpNightStart.Value.TimeOfDay;
+            var (morningDetails, nightDetails) = SplitShiftDetails(details, shiftDate, morningStart, nightStart);
+
+            if (shiftType == "Morning" && morningDetails.Count == 0)
+            {
+                MessageBox.Show($"No Morning shift data ({dtpMorningStart.Value:hh:mm tt} – {dtpNightStart.Value:hh:mm tt}).", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            if (shiftType == "Night" && nightDetails.Count == 0)
+            {
+                MessageBox.Show($"No Night shift data ({dtpNightStart.Value:hh:mm tt} onwards).", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            string fileName = shiftType switch
+            {
+                "Morning" => $"MorningShift_{shiftDate:yyyyMMdd}.xlsx",
+                "Night" => $"NightShift_{shiftDate:yyyyMMdd}.xlsx",
+                _ => $"ShiftSalesReport_{shiftDate:yyyyMMdd}.xlsx"
+            };
+
+            var path = ExportHelper.ShowSaveDialog("Excel Files|*.xlsx", fileName);
+            if (path != null)
+            {
+                ExportHelper.ExportShiftSalesExcel(morningDetails, nightDetails, path, shiftType);
+                MessageBox.Show($"{shiftType} Shift Export Successful!\n\nMorning: {morningDetails.Count} items\nNight: {nightDetails.Count} items", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+
+        private static (List<ShiftSalesDetail> Morning, List<ShiftSalesDetail> Night) SplitShiftDetails(
+            List<ShiftSalesDetail> details,
+            DateTime shiftDate,
+            TimeSpan morningStart,
+            TimeSpan nightStart)
+        {
+            var morning = new List<ShiftSalesDetail>();
+            var night = new List<ShiftSalesDetail>();
+            var date = shiftDate.Date;
+            var nextDate = shiftDate.AddDays(1).Date;
+
+            foreach (var d in details)
+            {
+                if (!TryParseTransactionTime(d.TransactionTime, out DateTime txTime))
+                    continue;
+
+                var tod = txTime.TimeOfDay;
+
+                if (txTime.Date == date)
+                {
+                    if (tod >= morningStart && tod < nightStart)
+                        morning.Add(d);
+                    else if (tod >= nightStart)
+                        night.Add(d);
+                    else
+                        night.Add(d);
+                }
+                else if (txTime.Date == nextDate && tod < morningStart)
+                {
+                    night.Add(d);
+                }
+            }
+
+            return (AggregateProducts(morning), AggregateProducts(night));
+        }
+
+        private static List<ShiftSalesDetail> AggregateProducts(List<ShiftSalesDetail> raw)
+        {
+            return raw
+                .GroupBy(d => new { d.ProductName, d.CategoryName, d.BuyingPrice, d.SellingPrice })
+                .Select(g => new ShiftSalesDetail
+                {
+                    ProductName = g.Key.ProductName,
+                    CategoryName = g.Key.CategoryName,
+                    BuyingPrice = g.Key.BuyingPrice,
+                    SellingPrice = g.Key.SellingPrice,
+                    QtySold = g.Sum(x => x.QtySold),
+                    TransactionTime = g.First().TransactionTime
+                })
+                .OrderBy(d => d.ProductName)
+                .ToList();
+        }
+
+        private static bool TryParseTransactionTime(string raw, out DateTime parsed)
+        {
+            if (DateTime.TryParseExact(raw,
+                    new[] { "yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd H:mm:ss", "yyyy-MM-ddTHH:mm:ss", "yyyy-MM-ddTHH:mm:ss.fff" },
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.None,
+                    out parsed))
+            {
+                return true;
+            }
+
+            return DateTime.TryParse(raw, out parsed);
+        }
+
+        private static (DateTime From, DateTime To) NormalizeDateRange(DateTime from, DateTime to)
+        {
+            var start = from.Date;
+            var end = to.Date;
+            if (start > end) (start, end) = (end, start);
+            return (start, end);
+        }
+    }
+
+    /// <summary>
+    /// A DataGridView subclass with DoubleBuffered enabled to prevent
+    /// visual glitches (flickering, sticky headers) when scrolling.
+    /// </summary>
+    internal class DoubleBufferedDataGridView : DataGridView
+    {
+        public DoubleBufferedDataGridView()
+        {
+            this.DoubleBuffered = true;
+            SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
+        }
     }
 }
+
+

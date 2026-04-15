@@ -17,6 +17,9 @@ namespace TransFundInventory.Forms
         private readonly StockTransactionRepository _transRepo = new();
         private readonly AuditLogRepository _auditRepo = new();
         private ComboBox cmbCategory = null!;
+        private TextBox txtSearchProduct = null!;
+        private TextBox txtSearchHistory = null!;
+        private DateTimePicker dtpHistoryDate = null!;
 
         public StockTransactionControl()
         {
@@ -48,19 +51,38 @@ namespace TransFundInventory.Forms
                 Padding = new Padding(20, 15, 20, 15)
             };
 
-            var lblCategory = new Label
+            var lblSearchProd = new Label
             {
-                Text = "Category *",
+                Text = "🔍 Search Product",
                 Font = new Font("Segoe UI", 9, FontStyle.Bold),
                 ForeColor = Color.FromArgb(60, 70, 90),
                 Location = new Point(20, 15),
                 AutoSize = true
             };
 
-            cmbCategory = new ComboBox
+            txtSearchProduct = new TextBox
             {
                 Location = new Point(20, 38),
-                Size = new Size(180, 28),
+                Size = new Size(160, 28),
+                Font = new Font("Segoe UI", 10),
+                PlaceholderText = "Type name/Code...",
+                BorderStyle = BorderStyle.FixedSingle
+            };
+            txtSearchProduct.TextChanged += TxtSearchProduct_TextChanged;
+
+            var lblCategory = new Label
+            {
+                Text = "Category",
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                ForeColor = Color.FromArgb(60, 70, 90),
+                Location = new Point(190, 15),
+                AutoSize = true
+            };
+
+            cmbCategory = new ComboBox
+            {
+                Location = new Point(190, 38),
+                Size = new Size(150, 28),
                 Font = new Font("Segoe UI", 10),
                 DropDownStyle = ComboBoxStyle.DropDownList
             };
@@ -71,25 +93,25 @@ namespace TransFundInventory.Forms
                 Text = "Product *",
                 Font = new Font("Segoe UI", 9, FontStyle.Bold),
                 ForeColor = Color.FromArgb(60, 70, 90),
-                Location = new Point(220, 15),
+                Location = new Point(350, 15),
                 AutoSize = true
             };
 
             cmbProduct = new ComboBox
             {
-                Location = new Point(220, 38),
-                Size = new Size(350, 28),
+                Location = new Point(350, 38),
+                Size = new Size(300, 28),
                 Font = new Font("Segoe UI", 10),
-                DropDownStyle = ComboBoxStyle.DropDownList
+                DropDownStyle = ComboBoxStyle.DropDownList // Changed from DropDown as we have a dedicated search now
             };
             cmbProduct.SelectedIndexChanged += CmbProduct_Changed;
 
             lblCurrentStock = new Label
             {
-                Text = "Current Stock: --",
-                Font = new Font("Segoe UI", 10, FontStyle.Bold),
-                ForeColor = Color.FromArgb(27, 94, 32),
-                Location = new Point(590, 40),
+                Text = "Stock: --",
+                Font = new Font("Segoe UI", 11, FontStyle.Bold),
+                ForeColor = Color.FromArgb(60, 70, 90),
+                Location = new Point(660, 40),
                 AutoSize = true
             };
 
@@ -117,14 +139,14 @@ namespace TransFundInventory.Forms
                 Text = "Quantity *",
                 Font = new Font("Segoe UI", 9, FontStyle.Bold),
                 ForeColor = Color.FromArgb(60, 70, 90),
-                Location = new Point(160, 75),
+                Location = new Point(150, 75),
                 AutoSize = true
             };
 
             nudQuantity = new NumericUpDown
             {
-                Location = new Point(160, 98),
-                Size = new Size(120, 28),
+                Location = new Point(150, 98),
+                Size = new Size(100, 28),
                 Font = new Font("Segoe UI", 10),
                 Minimum = 1,
                 Maximum = 999999,
@@ -133,17 +155,17 @@ namespace TransFundInventory.Forms
 
             var lblNotes = new Label
             {
-                Text = "Notes",
+                Text = "Notes / Reason",
                 Font = new Font("Segoe UI", 9, FontStyle.Bold),
                 ForeColor = Color.FromArgb(60, 70, 90),
-                Location = new Point(300, 75),
+                Location = new Point(260, 75),
                 AutoSize = true
             };
 
             txtNotes = new TextBox
             {
-                Location = new Point(300, 98),
-                Size = new Size(300, 28),
+                Location = new Point(260, 98),
+                Size = new Size(320, 28),
                 Font = new Font("Segoe UI", 10),
                 BorderStyle = BorderStyle.FixedSingle,
                 PlaceholderText = "Enter reason/remarks..."
@@ -152,7 +174,7 @@ namespace TransFundInventory.Forms
             var btnSubmit = new Button
             {
                 Text = "📥 Record Transaction",
-                Location = new Point(620, 93),
+                Location = new Point(590, 93),
                 Size = new Size(180, 38),
                 Font = new Font("Segoe UI", 10, FontStyle.Bold),
                 BackColor = Color.FromArgb(27, 94, 32),
@@ -164,21 +186,63 @@ namespace TransFundInventory.Forms
             btnSubmit.Click += BtnSubmit_Click;
 
             panelForm.Controls.AddRange(new Control[] {
+                lblSearchProd, txtSearchProduct,
                 lblCategory, cmbCategory, lblProduct, cmbProduct, lblCurrentStock,
                 lblType, cmbType, lblQty, nudQuantity,
                 lblNotes, txtNotes, btnSubmit
             });
 
-            // Transaction history label
+            // Transaction history panel
+            var panelHistoryHeader = new Panel
+            {
+                Dock = DockStyle.Top,
+                Height = 45,
+                Padding = new Padding(0, 5, 0, 5)
+            };
+
             var lblHistory = new Label
             {
                 Text = "📋 Transaction History",
-                Font = new Font("Segoe UI", 13, FontStyle.Bold),
+                Font = new Font("Segoe UI", 12, FontStyle.Bold),
                 ForeColor = Color.FromArgb(27, 94, 32),
-                Dock = DockStyle.Top,
-                Height = 40,
-                Padding = new Padding(0, 10, 0, 0)
+                Dock = DockStyle.Left,
+                AutoSize = true,
+                Padding = new Padding(0, 5, 15, 0)
             };
+
+            var panelFilters = new Panel
+            {
+                Dock = DockStyle.Right,
+                Width = 450,
+                Padding = new Padding(0, 5, 10, 0)
+            };
+
+            txtSearchHistory = new TextBox
+            {
+                Width = 230,
+                Font = new Font("Segoe UI", 10),
+                PlaceholderText = "🔍 Search history records...",
+                BorderStyle = BorderStyle.FixedSingle,
+                Location = new Point(40, 2)
+            };
+            txtSearchHistory.TextChanged += TxtSearchHistory_TextChanged;
+
+            dtpHistoryDate = new DateTimePicker
+            {
+                Format = DateTimePickerFormat.Short,
+                Font = new Font("Segoe UI", 10),
+                Width = 140,
+                Location = new Point(290, 1),
+                ShowCheckBox = true,
+                Checked = false
+            };
+            dtpHistoryDate.ValueChanged += DtpHistoryDate_ValueChanged;
+
+            panelFilters.Controls.Add(txtSearchHistory);
+            panelFilters.Controls.Add(dtpHistoryDate);
+
+            panelHistoryHeader.Controls.Add(panelFilters);
+            panelHistoryHeader.Controls.Add(lblHistory);
 
             // DataGridView
             var panelGrid = new Panel
@@ -195,6 +259,8 @@ namespace TransFundInventory.Forms
                 BorderStyle = BorderStyle.None,
                 AllowUserToAddRows = false,
                 AllowUserToDeleteRows = false,
+                AllowUserToResizeColumns = false,
+                AllowUserToResizeRows = false,
                 ReadOnly = true,
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect,
@@ -257,9 +323,12 @@ namespace TransFundInventory.Forms
                 var path = ExportHelper.ShowSaveDialog("Excel Files|*.xlsx", "Transactions_Report.xlsx");
                 if (path != null)
                 {
-                    var trans = _transRepo.GetRecent(500);
-                    var data = trans.Select(t => new { t.TransactionDate, Product = t.ProductName, t.Type, t.Quantity, t.Notes, User = t.UserName }).ToList();
-                    ExportHelper.ExportToExcel(data, "Transactions", path);
+                    var trans = _transRepo.GetRecent(500).Where(t => !t.Notes.StartsWith("Sold (Order")).ToList();
+                    
+                    DateTime fromDate = trans.Count > 0 ? DateTime.Parse(trans.Last().TransactionDate) : DateTime.Now;
+                    DateTime toDate = trans.Count > 0 ? DateTime.Parse(trans.First().TransactionDate) : DateTime.Now;
+
+                    ExportHelper.ExportStockHistoryExcel(trans, fromDate, toDate, path);
                     MessageBox.Show("Export complete!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
             };
@@ -281,7 +350,7 @@ namespace TransFundInventory.Forms
                 var path = ExportHelper.ShowSaveDialog("PDF Files|*.pdf", "Transactions_Report.pdf");
                 if (path != null)
                 {
-                    var trans = _transRepo.GetRecent(500);
+                    var trans = _transRepo.GetRecent(500).Where(t => !t.Notes.StartsWith("Sold (Order")).ToList();
                     ExportHelper.ExportTransactionsToPdf(trans, path);
                     MessageBox.Show("Export complete!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
@@ -290,9 +359,13 @@ namespace TransFundInventory.Forms
             panelExport.Controls.Add(btnExportExcel);
             panelExport.Controls.Add(btnExportPdf);
 
-            this.Controls.Add(panelGrid);
-            this.Controls.Add(panelExport);
-            this.Controls.Add(lblHistory);
+            // Only show transaction history for Admin users
+            if (SessionManager.IsAdmin)
+            {
+                this.Controls.Add(panelGrid);
+                this.Controls.Add(panelExport);
+                this.Controls.Add(panelHistoryHeader);
+            }
             this.Controls.Add(panelForm);
             this.Controls.Add(lblTitle);
         }
@@ -309,18 +382,32 @@ namespace TransFundInventory.Forms
 
         private void CmbCategory_Changed(object? sender, EventArgs e)
         {
+            txtSearchProduct.Clear(); // Clear search when category changes
             LoadProducts();
         }
 
-        private void LoadProducts()
+        private void TxtSearchProduct_TextChanged(object? sender, EventArgs e)
+        {
+            LoadProducts(txtSearchProduct.Text);
+        }
+
+        private void LoadProducts(string searchTerm = "")
         {
             cmbProduct.Items.Clear();
             cmbProduct.Items.Add("-- Select Product --");
             var products = _productRepo.GetAll();
 
-            if (cmbCategory.SelectedIndex > 0 && cmbCategory.SelectedItem is Category cat)
+            // Ignore category filter if there is a search term to find across all categories
+            if (string.IsNullOrWhiteSpace(searchTerm))
             {
-                products = products.Where(p => p.CategoryId == cat.Id).ToList();
+                if (cmbCategory.SelectedIndex > 0 && cmbCategory.SelectedItem is Category cat)
+                {
+                    products = products.Where(p => p.CategoryId == cat.Id).ToList();
+                }
+            }
+            else
+            {
+                products = products.Where(p => p.Name.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)).ToList();
             }
 
             foreach (var p in products)
@@ -328,25 +415,79 @@ namespace TransFundInventory.Forms
                 cmbProduct.Items.Add(p);
             }
             cmbProduct.DisplayMember = "Name";
-            if (cmbProduct.Items.Count > 0) cmbProduct.SelectedIndex = 0;
+            
+            if (cmbProduct.Items.Count > 1 && !string.IsNullOrWhiteSpace(searchTerm))
+            {
+                cmbProduct.SelectedIndex = 1; // Auto-select the first found item
+            }
+            else if (cmbProduct.Items.Count > 0)
+            {
+                cmbProduct.SelectedIndex = 0;
+            }
         }
 
         private void CmbProduct_Changed(object? sender, EventArgs e)
         {
             if (cmbProduct.SelectedIndex > 0 && cmbProduct.SelectedItem is Product product)
             {
-                lblCurrentStock.Text = $"Current Stock: {product.Quantity} {product.Unit}";
+                lblCurrentStock.Text = $"Stock: {product.Quantity} {product.Unit}";
+                if (product.Quantity <= product.MinStockLevel)
+                {
+                    lblCurrentStock.ForeColor = Color.FromArgb(231, 76, 60); // Red if low
+                }
+                else
+                {
+                    lblCurrentStock.ForeColor = Color.FromArgb(39, 174, 96); // Green if OK
+                }
             }
             else
             {
-                lblCurrentStock.Text = "Current Stock: --";
+                lblCurrentStock.Text = "Stock: --";
+                lblCurrentStock.ForeColor = Color.FromArgb(60, 70, 90);
             }
+        }
+
+        private void TxtSearchHistory_TextChanged(object? sender, EventArgs e)
+        {
+            LoadTransactions();
+        }
+
+        private void DtpHistoryDate_ValueChanged(object? sender, EventArgs e)
+        {
+            LoadTransactions();
         }
 
         private void LoadTransactions()
         {
-            var transactions = _transRepo.GetRecent(50);
-            dgvTransactions.DataSource = transactions.Select(t => new
+            var searchTerm = txtSearchHistory.Text.Trim().ToLower();
+            var allTransactions = _transRepo.GetRecent(500); // Increased limit as we may filter
+            
+            var filtered = allTransactions.Where(t => !t.Notes.StartsWith("Sold (Order"));
+            
+            // Filter by Date
+            if (dtpHistoryDate.Checked)
+            {
+                var selectedDate = dtpHistoryDate.Value.Date;
+                filtered = filtered.Where(t => 
+                {
+                    if (DateTime.TryParse(t.TransactionDate, out DateTime logDate))
+                    {
+                        return logDate.Date == selectedDate;
+                    }
+                    return false;
+                });
+            }
+
+            // Filter by Keyword
+            if (!string.IsNullOrEmpty(searchTerm))
+            {
+                filtered = filtered.Where(t => 
+                    t.ProductName.ToLower().Contains(searchTerm) || 
+                    (t.Notes != null && t.Notes.ToLower().Contains(searchTerm)) ||
+                    t.Type.ToLower().Contains(searchTerm));
+            }
+
+            dgvTransactions.DataSource = filtered.Take(100).Select(t => new
             {
                 Date = t.TransactionDate,
                 Product = t.ProductName,

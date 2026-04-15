@@ -10,6 +10,13 @@ namespace TransFundInventory.Data
     {
         private readonly string connectionString = DatabaseHelper.ConnectionString;
         private string Section => SessionManager.CurrentSection;
+        private static (string From, string To) BuildSqlDateRange(DateTime fromDate, DateTime toDate)
+        {
+            var from = fromDate.Date;
+            var to = toDate.Date;
+            if (from > to) (from, to) = (to, from);
+            return (from.ToString("yyyy-MM-dd 00:00:00"), to.ToString("yyyy-MM-dd 23:59:59"));
+        }
 
         /// <summary>
         /// Generates order number in format MMDDYY-XXXX (auto-incrementing per day)
@@ -127,8 +134,7 @@ namespace TransFundInventory.Data
                     VALUES (@userId, @action, @details, @timestamp)";
                 auditCmd.Parameters.AddWithValue("@userId", currentUserId);
                 auditCmd.Parameters.AddWithValue("@action", "Sales Checkout");
-                string paymentDetails = sale.PaymentMethod == "GCash" ? $" via GCash (Ref: {sale.ReferenceNumber})" : " via Cash";
-                auditCmd.Parameters.AddWithValue("@details", $"[{Section}] Processed sale Order#{sale.OrderNumber} for ₱{sale.TotalAmount:N2}{paymentDetails} ({itemNames})");
+                auditCmd.Parameters.AddWithValue("@details", $"[{Section}] Processed sale Order#{sale.OrderNumber} for ₱{sale.TotalAmount:N2} via Cash ({itemNames})");
                 auditCmd.Parameters.AddWithValue("@timestamp", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
                 auditCmd.ExecuteNonQuery();
 
@@ -147,18 +153,19 @@ namespace TransFundInventory.Data
             var sales = new List<SalesTransaction>();
             using var connection = new SqliteConnection(connectionString);
             connection.Open();
+            var (from, to) = BuildSqlDateRange(fromDate, toDate);
 
             var command = connection.CreateCommand();
             command.CommandText = @"
                 SELECT s.*, u.FullName as UserName
                 FROM SalesTransactions s
                 JOIN Users u ON s.UserId = u.Id
-                WHERE date(s.TransactionDate) >= date(@from) AND date(s.TransactionDate) <= date(@to)
+                WHERE s.TransactionDate >= @from AND s.TransactionDate <= @to
                 AND s.Section = @section
                 ORDER BY s.TransactionDate DESC";
             
-            command.Parameters.AddWithValue("@from", fromDate.ToString("yyyy-MM-dd"));
-            command.Parameters.AddWithValue("@to", toDate.ToString("yyyy-MM-dd"));
+            command.Parameters.AddWithValue("@from", from);
+            command.Parameters.AddWithValue("@to", to);
             command.Parameters.AddWithValue("@section", Section);
 
             using var reader = command.ExecuteReader();
@@ -223,6 +230,7 @@ namespace TransFundInventory.Data
         {
             using var connection = new SqliteConnection(connectionString);
             connection.Open();
+            var (from, to) = BuildSqlDateRange(fromDate, toDate);
 
             var command = connection.CreateCommand();
             command.CommandText = @"
@@ -231,11 +239,11 @@ namespace TransFundInventory.Data
                     COALESCE(SUM((si.PriceAtSale - si.CostAtSale) * si.Quantity), 0) as NetProfit
                 FROM SalesItems si
                 JOIN SalesTransactions st ON si.SalesTransactionId = st.Id
-                WHERE date(st.TransactionDate) >= date(@from) AND date(st.TransactionDate) <= date(@to)
+                WHERE st.TransactionDate >= @from AND st.TransactionDate <= @to
                 AND st.Section = @section";
             
-            command.Parameters.AddWithValue("@from", fromDate.ToString("yyyy-MM-dd"));
-            command.Parameters.AddWithValue("@to", toDate.ToString("yyyy-MM-dd"));
+            command.Parameters.AddWithValue("@from", from);
+            command.Parameters.AddWithValue("@to", to);
             command.Parameters.AddWithValue("@section", Section);
 
             using var reader = command.ExecuteReader();
@@ -278,6 +286,66 @@ namespace TransFundInventory.Data
             return results;
         }
 
+        /// <summary>
+        /// Returns a flat list of all sold items with full details for Transaction History display.
+        /// </summary>
+        public List<SalesTransactionDetail> GetSalesItemsDetail(DateTime fromDate, DateTime toDate)
+        {
+            var details = new List<SalesTransactionDetail>();
+            using var connection = new SqliteConnection(connectionString);
+            connection.Open();
+            var (from, to) = BuildSqlDateRange(fromDate, toDate);
+
+            var command = connection.CreateCommand();
+            command.CommandText = @"
+                SELECT 
+                    MAX(si.Id) as Id,
+                    st.TransactionDate,
+                    st.OrderNumber,
+                    p.Name AS ProductName,
+                    SUM(si.Quantity) AS QtySold,
+                    si.PriceAtSale AS UnitPrice,
+                    SUM(si.Subtotal) as Subtotal,
+                    si.CostAtSale AS CostPrice,
+                    SUM((si.PriceAtSale - si.CostAtSale) * si.Quantity) AS Profit,
+                    st.PaymentMethod,
+                    u.FullName AS Cashier
+                FROM SalesItems si
+                JOIN SalesTransactions st ON si.SalesTransactionId = st.Id
+                JOIN Products p ON si.ProductId = p.Id
+                JOIN Users u ON st.UserId = u.Id
+                WHERE st.TransactionDate >= @from 
+                  AND st.TransactionDate <= @to
+                  AND st.Section = @section
+                GROUP BY st.OrderNumber, p.Name, st.TransactionDate, si.PriceAtSale, si.CostAtSale, st.PaymentMethod, u.FullName
+                ORDER BY st.TransactionDate DESC";
+
+            command.Parameters.AddWithValue("@from", from);
+            command.Parameters.AddWithValue("@to", to);
+            command.Parameters.AddWithValue("@section", Section);
+
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                details.Add(new SalesTransactionDetail
+                {
+                    Id = reader.GetInt32(reader.GetOrdinal("Id")),
+                    Date = reader.GetString(reader.GetOrdinal("TransactionDate")),
+                    OrderNumber = reader.IsDBNull(reader.GetOrdinal("OrderNumber")) ? "" : reader.GetString(reader.GetOrdinal("OrderNumber")),
+                    ProductName = reader.GetString(reader.GetOrdinal("ProductName")),
+                    QtySold = reader.GetInt32(reader.GetOrdinal("QtySold")),
+                    UnitPrice = reader.GetDouble(reader.GetOrdinal("UnitPrice")),
+                    Subtotal = reader.GetDouble(reader.GetOrdinal("Subtotal")),
+                    CostPrice = reader.GetDouble(reader.GetOrdinal("CostPrice")),
+                    Profit = reader.GetDouble(reader.GetOrdinal("Profit")),
+                    PaymentMethod = reader.IsDBNull(reader.GetOrdinal("PaymentMethod")) ? "Cash" : reader.GetString(reader.GetOrdinal("PaymentMethod")),
+                    Cashier = reader.GetString(reader.GetOrdinal("Cashier"))
+                });
+            }
+
+            return details;
+        }
+
         public void ResetSalesData()
         {
             using var connection = new SqliteConnection(connectionString);
@@ -307,6 +375,91 @@ namespace TransFundInventory.Data
                 transaction.Rollback();
                 throw;
             }
+        }
+        public List<CashierSalesSummary> GetCashierSalesSummary(DateTime fromDate, DateTime toDate)
+        {
+            var summary = new List<CashierSalesSummary>();
+            var (from, to) = BuildSqlDateRange(fromDate, toDate);
+            string sql = @"
+                SELECT 
+                    u.FullName AS CashierName,
+                    COUNT(DISTINCT t.Id) AS TotalTransactions,
+                    COALESCE(SUM(i.Quantity), 0) AS ItemsSold,
+                    COALESCE(SUM(t.TotalAmount), 0) AS GrossSales,
+                    COALESCE(SUM(i.Subtotal - (i.Quantity * i.CostAtSale)), 0) AS NetProfit
+                FROM SalesTransactions t
+                JOIN Users u ON t.UserId = u.Id
+                LEFT JOIN SalesItems i ON t.Id = i.SalesTransactionId
+                WHERE t.Section = @section AND t.TransactionDate >= @from AND t.TransactionDate <= @to
+                GROUP BY u.FullName
+                ORDER BY GrossSales DESC";
+
+            using var connection = DatabaseHelper.GetConnection();
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = sql;
+            command.Parameters.AddWithValue("@section", Section);
+            command.Parameters.AddWithValue("@from", from);
+            command.Parameters.AddWithValue("@to", to);
+
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                summary.Add(new CashierSalesSummary
+                {
+                    CashierName = reader.GetString(0),
+                    TotalTransactions = reader.GetInt32(1),
+                    ItemsSold = reader.GetInt32(2),
+                    GrossSales = reader.GetDouble(3),
+                    NetProfit = reader.GetDouble(4)
+                });
+            }
+
+            return summary;
+        }
+
+        public List<ShiftSalesDetail> GetShiftSalesDetails(DateTime fromDate, DateTime toDate)
+        {
+            var details = new List<ShiftSalesDetail>();
+            string sql = @"
+                SELECT 
+                    p.Name AS ProductName,
+                    COALESCE(c.Name, 'Uncategorized') AS CategoryName,
+                    i.CostAtSale AS BuyingPrice,
+                    i.PriceAtSale AS SellingPrice,
+                    i.Quantity AS QtySold,
+                    t.TransactionDate
+                FROM SalesItems i
+                JOIN SalesTransactions t ON i.SalesTransactionId = t.Id
+                JOIN Products p ON i.ProductId = p.Id
+                LEFT JOIN Categories c ON p.CategoryId = c.Id
+                WHERE t.Section = @section 
+                  AND date(t.TransactionDate) BETWEEN date(@from) AND date(@to)
+                ORDER BY p.Name";
+
+            using var connection = DatabaseHelper.GetConnection();
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = sql;
+            command.Parameters.AddWithValue("@section", Section);
+            command.Parameters.AddWithValue("@from", fromDate.ToString("yyyy-MM-dd"));
+            command.Parameters.AddWithValue("@to", toDate.ToString("yyyy-MM-dd"));
+
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                details.Add(new ShiftSalesDetail
+                {
+                    ProductName = reader.GetString(0),
+                    CategoryName = reader.IsDBNull(1) ? "Uncategorized" : reader.GetString(1),
+                    BuyingPrice = reader.GetDouble(2),
+                    SellingPrice = reader.GetDouble(3),
+                    QtySold = reader.GetInt32(4),
+                    TransactionTime = reader.GetString(5)
+                });
+            }
+
+            return details;
         }
     }
 }

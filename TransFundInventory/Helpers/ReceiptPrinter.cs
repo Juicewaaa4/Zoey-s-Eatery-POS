@@ -9,7 +9,7 @@ namespace TransFundInventory.Helpers
 {
     public static class ReceiptPrinter
     {
-        public static void Print(SalesTransaction sale, List<SalesItem> items)
+        public static void Print(SalesTransaction sale, List<SalesItem> items, bool isDuplicate = false)
         {
             using PrintDocument pd = new PrintDocument();
             
@@ -41,10 +41,15 @@ namespace TransFundInventory.Helpers
                     g.DrawString(text, f, Brushes.Black, x, currY);
                 }
 
+                if (isDuplicate)
+                {
+                    DrawCenterText("--- CASHIER COPY ---", fontBold, y + offset);
+                    offset += lineOffset + 5;
+                }
+
                 DrawCenterText("Zoey's Billiard House", fontHeader, y + offset);
-                offset += lineOffset + 5;
-                DrawCenterText("and Billiard House", fontHeader, y + offset);
                 offset += 20;
+
 
                 g.DrawString(new string('-', 40), fontBody, Brushes.Black, startX, y + offset);
                 offset += lineOffset;
@@ -91,28 +96,13 @@ namespace TransFundInventory.Helpers
                 g.DrawString(sale.TotalAmount.ToString("N2"), fontBold, Brushes.Black, startX + 210, y + offset);
                 offset += lineOffset;
 
-                if (sale.PaymentMethod == "GCash")
-                {
-                    g.DrawString("GCASH PAID:", fontBody, Brushes.Black, startX + 100, y + offset);
-                    g.DrawString(sale.TotalAmount.ToString("N2"), fontBody, Brushes.Black, startX + 210, y + offset);
-                    offset += lineOffset;
-                    
-                    if (!string.IsNullOrEmpty(sale.ReferenceNumber))
-                    {
-                        g.DrawString($"GCASH OTP: {sale.ReferenceNumber}", fontBody, Brushes.Black, startX, y + offset);
-                        offset += 25;
-                    }
-                }
-                else
-                {
-                    g.DrawString("CASH TEND:", fontBody, Brushes.Black, startX + 100, y + offset);
-                    g.DrawString(sale.CashTendered.ToString("N2"), fontBody, Brushes.Black, startX + 210, y + offset);
-                    offset += lineOffset;
+                g.DrawString("CASH TEND:", fontBody, Brushes.Black, startX + 100, y + offset);
+                g.DrawString(sale.CashTendered.ToString("N2"), fontBody, Brushes.Black, startX + 210, y + offset);
+                offset += lineOffset;
 
-                    g.DrawString("CHANGE:", fontBold, Brushes.Black, startX + 100, y + offset);
-                    g.DrawString(sale.ChangeAmount.ToString("N2"), fontBold, Brushes.Black, startX + 210, y + offset);
-                    offset += 25;
-                }
+                g.DrawString("CHANGE:", fontBold, Brushes.Black, startX + 100, y + offset);
+                g.DrawString(sale.ChangeAmount.ToString("N2"), fontBold, Brushes.Black, startX + 210, y + offset);
+                offset += 25;
 
                 DrawCenterText("Thank you for your business!", fontBody, y + offset);
                 offset += 20;

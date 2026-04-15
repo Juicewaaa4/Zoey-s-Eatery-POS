@@ -68,6 +68,17 @@ namespace TransFundInventory.Forms
                 Padding = new Padding(0, 10, 0, 0)
             };
 
+            var lblDeveloper = new Label
+            {
+                Text = "Developed by Lloyd Joshua De Lara",
+                Font = new Font("Segoe UI", 8, FontStyle.Italic),
+                ForeColor = Color.FromArgb(129, 199, 132),
+                TextAlign = ContentAlignment.BottomCenter,
+                Dock = DockStyle.Bottom,
+                Height = 25,
+                Padding = new Padding(0, 0, 0, 8)
+            };
+
             var lblTagline = new Label
             {
                 Text = "Paltao, Pulilan, Bulacan",
@@ -75,13 +86,14 @@ namespace TransFundInventory.Forms
                 ForeColor = Color.FromArgb(129, 199, 132), // Light green
                 TextAlign = ContentAlignment.TopCenter,
                 Dock = DockStyle.Bottom,
-                Height = 50,
-                Padding = new Padding(0, 0, 0, 25)
+                Height = 35,
+                Padding = new Padding(0, 0, 0, 0)
             };
 
             panelLeft.Controls.Add(lblBrand);
             if (picLogo != null) panelLeft.Controls.Add(picLogo);
             panelLeft.Controls.Add(lblTagline);
+            panelLeft.Controls.Add(lblDeveloper);
 
             // Right panel - login form
             panelRight = new Panel
