@@ -24,4 +24,4 @@ The application is built to be "Self-Contained". You can copy the generated fold
 2. Run `TransFundInventory.exe` directly on the host machine.
 3. Share the folder on the Network to connect Cashier terminals.
 
-*Developed with the assistance of an AI coding agent for maximum operational efficiency.*
+
