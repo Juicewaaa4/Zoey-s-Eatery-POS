@@ -304,7 +304,7 @@ namespace TransFundInventory.Forms
                 var recentTransactions = transRepo.GetRecent(10);
                 dgvRecent.DataSource = recentTransactions.Select(t => new
                 {
-                    t.TransactionDate,
+                    Date = DateTime.TryParse(t.TransactionDate, out var dt) ? dt.ToString("yyyy-MM-dd hh:mm tt") : t.TransactionDate,
                     Product = t.ProductName,
                     t.Type,
                     t.Quantity,

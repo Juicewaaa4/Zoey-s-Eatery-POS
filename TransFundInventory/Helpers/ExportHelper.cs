@@ -644,7 +644,7 @@ namespace TransFundInventory.Helpers
             int headerRow = 6;
 
             // ── Column Headers ──
-            var headers = new[] { "Date", "Time", "Order #", "Product", "Qty Sold", "Unit Price", "Subtotal", "Profit", "Payment", "Cashier" };
+            var headers = new[] { "Date", "Time", "Order #", "Product", "Qty Sold", "Unit Price", "Subtotal", "Cashier" };
             var headerBg = XLColor.FromArgb(27, 94, 32);
             var headerFont = XLColor.White;
 
@@ -669,9 +669,11 @@ namespace TransFundInventory.Helpers
             var altRowBg = XLColor.FromArgb(245, 250, 245);
             var whiteBg = XLColor.White;
 
-            for (int r = 0; r < details.Count; r++)
+            var sortedDetails = details.OrderBy(d => DateTime.Parse(d.Date)).ToList();
+
+            for (int r = 0; r < sortedDetails.Count; r++)
             {
-                var d = details[r];
+                var d = sortedDetails[r];
                 int row = headerRow + 1 + r;
                 bool isAlt = r % 2 == 1;
 
@@ -682,27 +684,15 @@ namespace TransFundInventory.Helpers
                 ws.Cell(row, 5).Value = d.QtySold;
                 ws.Cell(row, 6).Value = d.UnitPrice;
                 ws.Cell(row, 7).Value = d.Subtotal;
-                ws.Cell(row, 8).Value = d.Profit;
-                ws.Cell(row, 9).Value = d.PaymentMethod;
-                ws.Cell(row, 10).Value = d.Cashier;
+                ws.Cell(row, 8).Value = d.Cashier;
 
                 // Formatting
                 ws.Cell(row, 5).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
                 ws.Cell(row, 6).Style.NumberFormat.Format = "_([$₱-469]* #,##0.00_);_([$₱-469]* (#,##0.00);_([$₱-469]* \"-\"??_);_(@_)";
                 ws.Cell(row, 7).Style.NumberFormat.Format = "_([$₱-469]* #,##0.00_);_([$₱-469]* (#,##0.00);_([$₱-469]* \"-\"??_);_(@_)";
-                ws.Cell(row, 8).Style.NumberFormat.Format = "_([$₱-469]* #,##0.00_);_([$₱-469]* (#,##0.00);_([$₱-469]* \"-\"??_);_(@_)";
-                ws.Cell(row, 9).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-
-                // Profit color
-                if (d.Profit >= 0)
-                    ws.Cell(row, 8).Style.Font.FontColor = XLColor.FromArgb(39, 174, 96);
-                else
-                    ws.Cell(row, 8).Style.Font.FontColor = XLColor.FromArgb(231, 76, 60);
-
-                ws.Cell(row, 8).Style.Font.Bold = true;
 
                 // Alternating row background + borders
-                for (int c = 1; c <= 10; c++)
+                for (int c = 1; c <= 8; c++)
                 {
                     var cell = ws.Cell(row, c);
                     cell.Style.Fill.BackgroundColor = isAlt ? altRowBg : whiteBg;
@@ -734,17 +724,13 @@ namespace TransFundInventory.Helpers
                 ws.Cell(summaryStart, c).Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
             }
 
-            int totalQty = details.Sum(d => d.QtySold);
-            double grossSales = details.Sum(d => d.Subtotal);
-            double totalProfit = details.Sum(d => d.Profit);
-            double totalCost = details.Sum(d => d.CostPrice * d.QtySold);
+            int totalQty = sortedDetails.Sum(d => d.QtySold);
+            double grossSales = sortedDetails.Sum(d => d.Subtotal);
 
             var summaryItems = new (string Label, string Value)[]
             {
                 ("Total Items Sold", totalQty.ToString("N0")),
-                ("Gross Sales", $"₱{grossSales:N2}"),
-                ("Total Cost (Puhunan)", $"₱{totalCost:N2}"),
-                ("Net Profit", $"₱{totalProfit:N2}")
+                ("Gross Sales", $"₱{grossSales:N2}")
             };
 
             for (int i = 0; i < summaryItems.Length; i++)
@@ -763,11 +749,9 @@ namespace TransFundInventory.Helpers
                 ws.Cell(row, 3).Style.Font.FontSize = 11;
                 ws.Cell(row, 3).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
 
-                // Highlight net profit
-                if (i == 3)
+                if (i == 1) // Gross Sales
                 {
-                    ws.Cell(row, 3).Style.Font.FontColor = totalProfit >= 0
-                        ? XLColor.FromArgb(39, 174, 96) : XLColor.FromArgb(231, 76, 60);
+                    ws.Cell(row, 3).Style.Font.FontColor = XLColor.FromArgb(39, 174, 96);
                     ws.Cell(row, 3).Style.Font.FontSize = 13;
                 }
 
@@ -780,14 +764,13 @@ namespace TransFundInventory.Helpers
 
             // ── Column Widths ──
             ws.Column(1).Width = 20; // Date
-            ws.Column(2).Width = 15; // Order #
-            ws.Column(3).Width = 25; // Product
-            ws.Column(4).Width = 10; // Qty
-            ws.Column(5).Width = 14; // Price
-            ws.Column(6).Width = 14; // Subtotal
-            ws.Column(7).Width = 14; // Profit
-            ws.Column(8).Width = 12; // Payment
-            ws.Column(9).Width = 18; // Cashier
+            ws.Column(2).Width = 15; // Time
+            ws.Column(3).Width = 15; // Order #
+            ws.Column(4).Width = 25; // Product
+            ws.Column(5).Width = 10; // Qty
+            ws.Column(6).Width = 14; // Price
+            ws.Column(7).Width = 14; // Subtotal
+            ws.Column(8).Width = 18; // Cashier
 
             // Print settings
             ws.PageSetup.PageOrientation = XLPageOrientation.Landscape;
@@ -1150,6 +1133,30 @@ namespace TransFundInventory.Helpers
                 row++;
             }
 
+            // ── Per-Shift Total Row ──
+            if (data.Count > 0)
+            {
+                ws.Cell(row, 1).Value = "TOTAL";
+                ws.Cell(row, 1).Style.Font.Bold = true;
+                ws.Cell(row, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
+
+                ws.Cell(row, 5).Value = totalDist;
+                ws.Cell(row, 6).Value = totalGross;
+                ws.Cell(row, 7).Value = totalNet;
+                double perc = totalGross > 0 ? totalNet / totalGross : 0;
+                ws.Cell(row, 8).Value = perc;
+
+                ws.Range(row, 5, row, 7).Style.NumberFormat.Format = "_([$₱-469]* #,##0.00_);_([$₱-469]* (#,##0.00);_([$₱-469]* \"-\"??_);_(@_)";
+                ws.Cell(row, 8).Style.NumberFormat.Format = "0%";
+
+                var totalRowRange = ws.Range(row, 1, row, 8);
+                totalRowRange.Style.Font.Bold = true;
+                totalRowRange.Style.Fill.BackgroundColor = XLColor.FromArgb(232, 242, 232);
+                totalRowRange.Style.Border.TopBorder = XLBorderStyleValues.Thin;
+                totalRowRange.Style.Border.TopBorderColor = XLColor.FromArgb(27, 94, 32);
+                row++;
+            }
+
             return row;
         }
 
@@ -1270,14 +1277,14 @@ namespace TransFundInventory.Helpers
                 grandTotal += c.Total;
                 r++;
             }
-            int breakdownTotalRow = r;
-            ws.Cell(r, sideCol).Value = "TOTAL";
+            ws.Cell(r, sideCol).Value = "Sales Total";
             ws.Cell(r, sideCol).Style.Font.Bold = true;
             ws.Cell(r, sideCol + 1).Value = grandTotal;
             ws.Cell(r, sideCol + 1).Style.Font.Bold = true;
             ws.Cell(r, sideCol + 1).Style.NumberFormat.Format = "_([$₱-469]* #,##0.00_);_([$₱-469]* (#,##0.00);_([$₱-469]* \"-\"??_);_(@_)";
             ws.Range(r, sideCol, r, sideCol + 1).Style.Fill.BackgroundColor = XLColor.FromArgb(232, 240, 248);
-            r += 2;
+            var salesTotalCell = ws.Cell(r, sideCol + 1).Address;
+            r += 3; // extra gap before Additional Income
 
             // ── Manual Entry: Additional Income ──
             ws.Cell(r, sideCol).Value = "Additional Income";
@@ -1288,23 +1295,21 @@ namespace TransFundInventory.Helpers
             ws.Range(r, sideCol, r, sideCol + 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
             r++;
 
-            // Editable rows — user types the amount in the right column
             var manualItems = new[] { "Tako Rent", "Kubo Rent", "Corkage Fee", "Videoke" };
             int manualStartRow = r;
             foreach (var item in manualItems)
             {
                 ws.Cell(r, sideCol).Value = item;
                 ws.Cell(r, sideCol).Style.Font.Bold = true;
-                // Leave sideCol+1 empty for user input
                 ws.Cell(r, sideCol + 1).Style.NumberFormat.Format = "_([$₱-469]* #,##0.00_);_([$₱-469]* (#,##0.00);_([$₱-469]* \"-\"??_);_(@_)";
-                ws.Cell(r, sideCol + 1).Style.Fill.BackgroundColor = XLColor.FromHtml("#fff2cc"); // Yellow = editable
+                ws.Cell(r, sideCol + 1).Style.Fill.BackgroundColor = XLColor.FromHtml("#fff2cc");
                 ws.Cell(r, sideCol + 1).Style.Border.SetOutsideBorder(XLBorderStyleValues.Thin);
                 ws.Cell(r, sideCol + 1).Style.Border.OutsideBorderColor = XLColor.FromHtml("#bf9000");
                 r++;
             }
             int manualEndRow = r - 1;
 
-            // Auto-compute total of manual entries
+            // Additional Total (sum of manual entries)
             string manualSumRange = $"{ws.Cell(manualStartRow, sideCol + 1).Address}:{ws.Cell(manualEndRow, sideCol + 1).Address}";
             ws.Cell(r, sideCol).Value = "Additional Total";
             ws.Cell(r, sideCol).Style.Font.Bold = true;
@@ -1312,11 +1317,24 @@ namespace TransFundInventory.Helpers
             ws.Cell(r, sideCol + 1).Style.Font.Bold = true;
             ws.Cell(r, sideCol + 1).Style.NumberFormat.Format = "_([$₱-469]* #,##0.00_);_([$₱-469]* (#,##0.00);_([$₱-469]* \"-\"??_);_(@_)";
             ws.Range(r, sideCol, r, sideCol + 1).Style.Fill.BackgroundColor = XLColor.FromArgb(232, 240, 248);
-            int additionalTotalRow = r;
+            var additionalTotalCell = ws.Cell(r, sideCol + 1).Address;
             r += 2;
 
-            // Removed Distributor Summary block from here
+            // ── Grand Total = Sales Total + Additional Total ──
+            ws.Cell(r, sideCol).Value = "GRAND TOTAL";
+            ws.Cell(r, sideCol).Style.Font.Bold = true;
+            ws.Cell(r, sideCol).Style.Font.FontSize = 12;
+            ws.Cell(r, sideCol + 1).FormulaA1 = $"{salesTotalCell}+{additionalTotalCell}";
+            ws.Cell(r, sideCol + 1).Style.Font.Bold = true;
+            ws.Cell(r, sideCol + 1).Style.Font.FontSize = 12;
+            ws.Cell(r, sideCol + 1).Style.Font.FontColor = XLColor.FromHtml("#27ae60");
+            ws.Cell(r, sideCol + 1).Style.NumberFormat.Format = "_([$₱-469]* #,##0.00_);_([$₱-469]* (#,##0.00);_([$₱-469]* \"-\"??_);_(@_)";
+            ws.Range(r, sideCol, r, sideCol + 1).Style.Fill.BackgroundColor = XLColor.FromArgb(209, 231, 209);
+            ws.Range(r, sideCol, r, sideCol + 1).Style.Border.SetOutsideBorder(XLBorderStyleValues.Medium);
+            ws.Range(r, sideCol, r, sideCol + 1).Style.Border.OutsideBorderColor = XLColor.FromHtml("#27ae60");
         }
+
+
 
         private static (List<ShiftSalesDetail> Morning, List<ShiftSalesDetail> Night) SplitShiftDetails(
             List<ShiftSalesDetail> details,
@@ -1342,8 +1360,6 @@ namespace TransFundInventory.Helpers
                         morningRaw.Add(d);
                     else if (tod >= nightStart)
                         nightRaw.Add(d);
-                    else
-                        nightRaw.Add(d); // Before morning = night carryover
                 }
                 else if (txTime.Date == nextDay && tod < morningStart)
                 {

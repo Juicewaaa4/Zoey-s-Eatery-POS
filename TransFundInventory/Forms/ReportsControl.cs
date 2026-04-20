@@ -25,6 +25,7 @@ namespace TransFundInventory.Forms
         private DateTimePicker dtpShiftDate = null!;
         private DateTimePicker dtpMorningStart = null!;
         private DateTimePicker dtpNightStart = null!;
+        private DateTimePicker dtpNightEnd = null!;
         private Label lblSalesTotal = null!;
         private Label lblProfitTotal = null!;
         private Label lblItemsSold = null!;
@@ -344,6 +345,10 @@ namespace TransFundInventory.Forms
             dtpNightStart = new DateTimePicker { Location = new Point(498, 8), Size = new Size(95, 28), Font = new Font("Segoe UI", 9), Format = DateTimePickerFormat.Custom, CustomFormat = "hh:mm tt", ShowUpDown = true, Value = DateTime.Today.AddHours(16) };
             dtpNightStart.ValueChanged += (s, e) => LoadShiftSales();
 
+            var lblNightEnd = new Label { Text = "Night End:", Font = new Font("Segoe UI", 9, FontStyle.Bold), ForeColor = Color.FromArgb(231, 76, 60), Location = new Point(608, 12), AutoSize = true };
+            dtpNightEnd = new DateTimePicker { Location = new Point(690, 8), Size = new Size(95, 28), Font = new Font("Segoe UI", 9), Format = DateTimePickerFormat.Custom, CustomFormat = "hh:mm tt", ShowUpDown = true, Value = DateTime.Today.AddHours(2).AddMinutes(30) };
+            dtpNightEnd.ValueChanged += (s, e) => LoadShiftSales();
+
             // Row 2: Export buttons — Morning & Night separate
             var btnMorningExcel = new Button
             {
@@ -388,7 +393,7 @@ namespace TransFundInventory.Forms
             btnBothExcel.Click += (s, e) => ExportShiftExcel("Both");
 
             panelShiftFilter.Controls.AddRange(new Control[] { 
-                lblShiftDate, dtpShiftDate, lblMorningStart, dtpMorningStart, lblNightStart, dtpNightStart,
+                lblShiftDate, dtpShiftDate, lblMorningStart, dtpMorningStart, lblNightStart, dtpNightStart, lblNightEnd, dtpNightEnd,
                 btnMorningExcel, btnNightExcel, btnBothExcel 
             });
             dgvShiftSales = CreateStyledGrid();
@@ -563,7 +568,29 @@ namespace TransFundInventory.Forms
         private void LoadTransactionHistory()
         {
             var (from, to) = NormalizeDateRange(dtpFrom.Value, dtpTo.Value);
-            var details = _salesRepo.GetSalesItemsDetail(from, to);
+            // Fetch one extra day to include the night shift carry-over for the last day in the range
+            var details = _salesRepo.GetSalesItemsDetail(from, to.AddDays(1));
+
+            var morningCutoff = dtpMorningStart.Value.TimeOfDay;
+            var nightEndCutoff = dtpNightEnd.Value.TimeOfDay;
+            var actualToDate = to.Date;
+            var carryOverDate = to.Date.AddDays(1);
+
+            details = details.Where(d =>
+            {
+                if (!DateTime.TryParse(d.Date, out var txDate)) return true;
+                
+                // 1. Exclude early morning of the first day
+                if (txDate.Date == from.Date && txDate.TimeOfDay < morningCutoff)
+                    return false;
+                
+                // 2. Only include the "carry-over" night shift on the day after the range ends
+                if (txDate.Date == carryOverDate)
+                    return txDate.TimeOfDay <= nightEndCutoff;
+                
+                // 3. Keep everything else within the range
+                return txDate.Date <= actualToDate;
+            }).ToList();
 
             // Update summary cards
             int totalItems = details.Sum(d => d.QtySold);
@@ -574,19 +601,19 @@ namespace TransFundInventory.Forms
             lblSalesTotal.Text = $"💰 Gross: ₱{totalSales:N2}";
             lblProfitTotal.Text = $"📈 Profit: ₱{totalProfit:N2}";
 
-            dgvHistory.DataSource = details.Select(d => new
-            {
-                Date = DateTime.Parse(d.Date).ToString("yyyy-MM-dd"),
-                Time = DateTime.Parse(d.Date).ToString("hh:mm tt"), // 12-hour AM/PM format
-                Order = d.OrderNumber,
-                Product = d.ProductName,
-                Qty = d.QtySold,
-                Price = d.UnitPrice,
-                Subtotal = d.Subtotal,
-                Profit = d.Profit,
-                Payment = d.PaymentMethod,
-                Cashier = d.Cashier
-            }).ToList();
+            dgvHistory.DataSource = details
+                .OrderBy(d => DateTime.Parse(d.Date))
+                .Select(d => new
+                {
+                    Date = DateTime.Parse(d.Date).ToString("yyyy-MM-dd"),
+                    Time = DateTime.Parse(d.Date).ToString("hh:mm tt"),
+                    Order = d.OrderNumber,
+                    Product = d.ProductName,
+                    Qty = d.QtySold,
+                    Price = d.UnitPrice,
+                    Subtotal = d.Subtotal,
+                    Cashier = d.Cashier
+                }).ToList();
 
             // Format currency columns
             if (dgvHistory.Columns.Count > 0)
@@ -595,8 +622,6 @@ namespace TransFundInventory.Forms
                     dgvHistory.Columns["Price"].DefaultCellStyle.Format = "₱#,##0.00";
                 if (dgvHistory.Columns.Contains("Subtotal"))
                     dgvHistory.Columns["Subtotal"].DefaultCellStyle.Format = "₱#,##0.00";
-                if (dgvHistory.Columns.Contains("Profit"))
-                    dgvHistory.Columns["Profit"].DefaultCellStyle.Format = "₱#,##0.00";
             }
 
             // Force immediate UI refresh
@@ -618,7 +643,7 @@ namespace TransFundInventory.Forms
 
             dgvStockHistory.DataSource = stockOnly.Select(t => new
             {
-                Date = t.TransactionDate,
+                Date = DateTime.TryParse(t.TransactionDate, out var dt) ? dt.ToString("yyyy-MM-dd hh:mm tt") : t.TransactionDate,
                 Product = t.ProductName,
                 t.Type,
                 t.Quantity,
@@ -768,7 +793,21 @@ namespace TransFundInventory.Forms
         private void ExportHistoryPdf()
         {
             var (from, to) = NormalizeDateRange(dtpFrom.Value, dtpTo.Value);
-            var details = _salesRepo.GetSalesItemsDetail(from, to);
+            var details = _salesRepo.GetSalesItemsDetail(from, to.AddDays(1));
+            
+            var morningCutoff = dtpMorningStart.Value.TimeOfDay;
+            var nightEndCutoff = dtpNightEnd.Value.TimeOfDay;
+            var actualToDate = to.Date;
+            var carryOverDate = to.Date.AddDays(1);
+
+            details = details.Where(d =>
+            {
+                if (!DateTime.TryParse(d.Date, out var txDate)) return true;
+                if (txDate.Date == from.Date && txDate.TimeOfDay < morningCutoff) return false;
+                if (txDate.Date == carryOverDate) return txDate.TimeOfDay <= nightEndCutoff;
+                return txDate.Date <= actualToDate;
+            }).ToList();
+
             if (details.Count == 0) { MessageBox.Show("No sales data to export.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
             
             var path = ExportHelper.ShowSaveDialog("PDF Files|*.pdf", $"SalesHistory_{from:yyyyMMdd}_{to:yyyyMMdd}.pdf");
@@ -782,7 +821,21 @@ namespace TransFundInventory.Forms
         private void ExportHistoryExcel()
         {
             var (from, to) = NormalizeDateRange(dtpFrom.Value, dtpTo.Value);
-            var details = _salesRepo.GetSalesItemsDetail(from, to);
+            var details = _salesRepo.GetSalesItemsDetail(from, to.AddDays(1));
+            
+            var morningCutoff = dtpMorningStart.Value.TimeOfDay;
+            var nightEndCutoff = dtpNightEnd.Value.TimeOfDay;
+            var actualToDate = to.Date;
+            var carryOverDate = to.Date.AddDays(1);
+
+            details = details.Where(d =>
+            {
+                if (!DateTime.TryParse(d.Date, out var txDate)) return true;
+                if (txDate.Date == from.Date && txDate.TimeOfDay < morningCutoff) return false;
+                if (txDate.Date == carryOverDate) return txDate.TimeOfDay <= nightEndCutoff;
+                return txDate.Date <= actualToDate;
+            }).ToList();
+
             if (details.Count == 0) { MessageBox.Show("No sales data to export.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
             
             var path = ExportHelper.ShowSaveDialog("Excel Files|*.xlsx", $"SalesHistory_{from:yyyyMMdd}_{to:yyyyMMdd}.xlsx");
@@ -833,7 +886,7 @@ namespace TransFundInventory.Forms
             var details = _salesRepo.GetShiftSalesDetails(shiftDate, nextDay);
             TimeSpan morningStart = dtpMorningStart.Value.TimeOfDay;
             TimeSpan nightStart = dtpNightStart.Value.TimeOfDay;
-            var (morningDetails, nightDetails) = SplitShiftDetails(details, shiftDate, morningStart, nightStart);
+            var (morningDetails, nightDetails) = SplitShiftDetails(details, shiftDate, morningStart, nightStart, dtpNightEnd.Value.TimeOfDay);
 
             var displayList = morningDetails
                 .Select(d => new { Shift = "☀️ Morning", Item = d })
@@ -899,7 +952,7 @@ namespace TransFundInventory.Forms
 
             TimeSpan morningStart = dtpMorningStart.Value.TimeOfDay;
             TimeSpan nightStart = dtpNightStart.Value.TimeOfDay;
-            var (morningDetails, nightDetails) = SplitShiftDetails(details, shiftDate, morningStart, nightStart);
+            var (morningDetails, nightDetails) = SplitShiftDetails(details, shiftDate, morningStart, nightStart, dtpNightEnd.Value.TimeOfDay);
 
             if (shiftType == "Morning" && morningDetails.Count == 0)
             {
@@ -932,7 +985,8 @@ namespace TransFundInventory.Forms
             List<ShiftSalesDetail> details,
             DateTime shiftDate,
             TimeSpan morningStart,
-            TimeSpan nightStart)
+            TimeSpan nightStart,
+            TimeSpan nightEnd)
         {
             var morning = new List<ShiftSalesDetail>();
             var night = new List<ShiftSalesDetail>();
@@ -952,12 +1006,13 @@ namespace TransFundInventory.Forms
                         morning.Add(d);
                     else if (tod >= nightStart)
                         night.Add(d);
-                    else
-                        night.Add(d);
+                    // before morningStart on shiftDate = ignored (prior night's carryover)
                 }
                 else if (txTime.Date == nextDate && tod < morningStart)
                 {
-                    night.Add(d);
+                    // Only include if within the night end cutoff
+                    if (tod <= nightEnd)
+                        night.Add(d);
                 }
             }
 

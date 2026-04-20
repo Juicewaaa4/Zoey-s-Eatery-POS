@@ -78,32 +78,15 @@ namespace TransFundInventory.Helpers
 
                 foreach (var item in items)
                 {
+                    // Truncate name to prevent wrapping overlap
                     string name = item.ProductName;
+                    if (name.Length > 15) name = name.Substring(0, 15) + ".";
 
-                    // If name is long, print the first 14 chars first
-                    if (name.Length <= 14)
-                    {
-                        g.DrawString(name, fontBody, Brushes.Black, startX, y + offset);
-                    }
-                    else
-                    {
-                        g.DrawString(name.Substring(0, 14), fontBody, Brushes.Black, startX, y + offset);
-                    }
-
+                    g.DrawString(name, fontBody, Brushes.Black, startX, y + offset);
                     g.DrawString(item.Quantity.ToString(), fontBody, Brushes.Black, startX + 130, y + offset);
                     g.DrawString(item.PriceAtSale.ToString("N0"), fontBody, Brushes.Black, startX + 170, y + offset);
                     g.DrawString(item.Subtotal.ToString("N2"), fontBody, Brushes.Black, startX + 220, y + offset);
                     offset += lineOffset;
-
-                    // Wrap the remaining text to the next line
-                    if (name.Length > 14)
-                    {
-                        string remaining = name.Substring(14);
-                        // Safety truncation for extremely long names (over 34 chars)
-                        if (remaining.Length > 20) remaining = remaining.Substring(0, 20) + "..."; 
-                        g.DrawString("  " + remaining, fontBody, Brushes.Black, startX, y + offset);
-                        offset += lineOffset;
-                    }
                 }
 
                 g.DrawString(new string('-', 40), fontBody, Brushes.Black, startX, y + offset);
