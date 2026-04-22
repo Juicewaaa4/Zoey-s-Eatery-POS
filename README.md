@@ -22,6 +22,6 @@ The application is built to be "Self-Contained". You can copy the generated fold
 
 1. Publish via terminal: `dotnet publish -c Release -r win-x64 --self-contained true`
 2. Run `TransFundInventory.exe` directly on the host machine.
-3. Share the folder on the Network to connect Cashier terminals.
+3. Share the folder on the Network to connect Cashier terminals. hehe
 
 
