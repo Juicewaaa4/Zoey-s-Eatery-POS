@@ -3,6 +3,7 @@ using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 using TransFundInventory.Models;
+using TransFundInventory.Data;
 using System.Globalization;
 
 namespace TransFundInventory.Helpers
@@ -1031,10 +1032,11 @@ namespace TransFundInventory.Helpers
             TimeSpan nightStart = TimeSpan.Parse(nightShiftStartStr);
             TimeSpan morningStart = TimeSpan.Parse(morningStartStr);
             var (morningDetails, nightDetails) = SplitShiftDetails(details, shiftDate, morningStart, nightStart);
-            ExportShiftSalesExcel(morningDetails, nightDetails, filePath, shiftType);
+            var cancelledDetails = new SalesRepository().GetCancelledOrders(shiftDate, shiftDate.AddDays(1));
+            ExportShiftSalesExcel(morningDetails, nightDetails, cancelledDetails, filePath, shiftType);
         }
 
-        public static void ExportShiftSalesExcel(List<ShiftSalesDetail> morningDetails, List<ShiftSalesDetail> nightDetails, string filePath, string shiftType = "Both")
+        public static void ExportShiftSalesExcel(List<ShiftSalesDetail> morningDetails, List<ShiftSalesDetail> nightDetails, List<ShiftSalesDetail> cancelledDetails, string filePath, string shiftType = "Both")
         {
             using var workbook = new XLWorkbook();
 
@@ -1046,6 +1048,12 @@ namespace TransFundInventory.Helpers
                 nextStartRow += 2; // Gap between sections
                 int nightEndRow = WriteShiftSection(ws, "Night Shift", nightDetails, XLColor.FromHtml("#6aa84f"), nextStartRow);
                 
+                if (cancelledDetails != null && cancelledDetails.Count > 0)
+                {
+                    int cancelRow = nightEndRow + 2;
+                    WriteShiftSection(ws, "Cancelled Orders", cancelledDetails, XLColor.FromHtml("#cc0000"), cancelRow);
+                }
+
                 // Print single overall totals at the bottom of the last shift
                 WriteGrandTotals(ws, nightEndRow + 1, morningDetails.Concat(nightDetails).ToList());
 
@@ -1055,11 +1063,23 @@ namespace TransFundInventory.Helpers
             }
             else if (shiftType == "Morning")
             {
-                CreateShiftSheet(workbook, "Morning Shift", morningDetails, XLColor.FromHtml("#6aa84f"));
+                var ws = workbook.Worksheets.Add("Morning Shift Report");
+                int endRow = WriteShiftSection(ws, "Morning Shift", morningDetails, XLColor.FromHtml("#6aa84f"), 1);
+                if (cancelledDetails != null && cancelledDetails.Count > 0)
+                {
+                    WriteShiftSection(ws, "Cancelled Orders", cancelledDetails, XLColor.FromHtml("#cc0000"), endRow + 2);
+                }
+                ws.Columns().AdjustToContents();
             }
             else if (shiftType == "Night")
             {
-                CreateShiftSheet(workbook, "Night Shift", nightDetails, XLColor.FromHtml("#6aa84f"));
+                var ws = workbook.Worksheets.Add("Night Shift Report");
+                int endRow = WriteShiftSection(ws, "Night Shift", nightDetails, XLColor.FromHtml("#6aa84f"), 1);
+                if (cancelledDetails != null && cancelledDetails.Count > 0)
+                {
+                    WriteShiftSection(ws, "Cancelled Orders", cancelledDetails, XLColor.FromHtml("#cc0000"), endRow + 2);
+                }
+                ws.Columns().AdjustToContents();
             }
             
             workbook.SaveAs(filePath);
@@ -1082,7 +1102,7 @@ namespace TransFundInventory.Helpers
 
             // Column headers
             int headerRow = startRow + 1;
-            var headers = new[] { "Product Sold", "Buying Price", "Selling Price", "SOLD", "DISTRIBUTOR PRICE", "GROSS INCOME", "NET INCOME", "PERCENTAGE" };
+            var headers = new[] { "Product Sold", "Unit Cost", "Selling Price", "SOLD", "TOTAL COST", "GROSS INCOME", "NET INCOME", "PERCENTAGE" };
             for (int i = 0; i < headers.Length; i++)
             {
                 var cell = ws.Cell(headerRow, i + 1);
@@ -1108,9 +1128,9 @@ namespace TransFundInventory.Helpers
                 ws.Cell(row, 2).Value = d.BuyingPrice;
                 ws.Cell(row, 3).Value = d.SellingPrice;
                 ws.Cell(row, 4).Value = d.QtySold;
-                ws.Cell(row, 5).Value = d.DistributorPrice;
-                ws.Cell(row, 6).Value = d.GrossIncome;
-                ws.Cell(row, 7).Value = d.NetIncome;
+                ws.Cell(row, 5).Value = d.BuyingPrice * d.QtySold; // Explicitly multiply to ensure Total Cost is correct
+                ws.Cell(row, 6).Value = d.SellingPrice * d.QtySold; // Explicitly multiply
+                ws.Cell(row, 7).Value = (d.SellingPrice * d.QtySold) - (d.BuyingPrice * d.QtySold); // Explicitly calculate Net Profit
                 ws.Cell(row, 8).Value = d.Percentage / 100.0;
 
                 ws.Range(row, 2, row, 3).Style.NumberFormat.Format = "_([$₱-469]* #,##0.00_);_([$₱-469]* (#,##0.00);_([$₱-469]* \"-\"??_);_(@_)";
@@ -1428,7 +1448,7 @@ namespace TransFundInventory.Helpers
 
             // Product headers
             int headerRow = 4;
-            var headers = new[] { "Product", "Buying Price", "Selling Price", "Qty Sold", "Distributor Cost", "Gross Income", "Net Income", "Margin %" };
+            var headers = new[] { "Product", "Unit Cost", "Selling Price", "Qty Sold", "Total Cost", "Gross Income", "Net Income", "Margin %" };
             for (int i = 0; i < headers.Length; i++)
             {
                 var cell = ws.Cell(headerRow, i + 1);
@@ -1452,9 +1472,9 @@ namespace TransFundInventory.Helpers
                 ws.Cell(row, 2).Value = d.BuyingPrice;
                 ws.Cell(row, 3).Value = d.SellingPrice;
                 ws.Cell(row, 4).Value = d.QtySold;
-                ws.Cell(row, 5).Value = d.DistributorPrice;
-                ws.Cell(row, 6).Value = d.GrossIncome;
-                ws.Cell(row, 7).Value = d.NetIncome;
+                ws.Cell(row, 5).Value = d.BuyingPrice * d.QtySold; // Explicitly multiply to ensure Total Cost is correct
+                ws.Cell(row, 6).Value = d.SellingPrice * d.QtySold; // Explicitly multiply
+                ws.Cell(row, 7).Value = (d.SellingPrice * d.QtySold) - (d.BuyingPrice * d.QtySold); // Explicitly calculate Net Profit
                 ws.Cell(row, 8).Value = d.Percentage / 100.0;
                 
                 // Formatting

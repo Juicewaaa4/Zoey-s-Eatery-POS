@@ -123,6 +123,11 @@ namespace TransFundInventory.Data
                     NotifyOnLowStock INTEGER NOT NULL DEFAULT 1,
                     IsEnabled INTEGER NOT NULL DEFAULT 0
                 );
+                
+                CREATE TABLE IF NOT EXISTS Settings (
+                    SettingKey TEXT PRIMARY KEY,
+                    SettingValue TEXT
+                );
             ";
             command.ExecuteNonQuery();
 
@@ -136,7 +141,10 @@ namespace TransFundInventory.Data
                 "ALTER TABLE SalesTransactions ADD COLUMN Section TEXT NOT NULL DEFAULT 'Store'",
                 "ALTER TABLE StockTransactions ADD COLUMN Section TEXT NOT NULL DEFAULT 'Store'",
                 "ALTER TABLE SalesTransactions ADD COLUMN PaymentMethod TEXT NOT NULL DEFAULT 'Cash'",
-                "ALTER TABLE SalesTransactions ADD COLUMN ReferenceNumber TEXT"
+                "ALTER TABLE SalesTransactions ADD COLUMN ReferenceNumber TEXT",
+                "ALTER TABLE SalesTransactions ADD COLUMN IsCancelled INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE SalesTransactions ADD COLUMN CancelledBy INTEGER",
+                "ALTER TABLE SalesTransactions ADD COLUMN CancelledDate TEXT"
             };
 
             foreach (var migration in migrations)

@@ -7,7 +7,9 @@ namespace TransFundInventory.Models
     public class SalesTransactionDetail
     {
         public int Id { get; set; }
+        public int SalesTransactionId { get; set; }
         public string Date { get; set; } = string.Empty;
+        public bool IsCancelled { get; set; }
         public string OrderNumber { get; set; } = string.Empty;
         public string ProductName { get; set; } = string.Empty;
         public int QtySold { get; set; }

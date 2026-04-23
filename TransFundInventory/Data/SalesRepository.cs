@@ -240,7 +240,8 @@ namespace TransFundInventory.Data
                 FROM SalesItems si
                 JOIN SalesTransactions st ON si.SalesTransactionId = st.Id
                 WHERE st.TransactionDate >= @from AND st.TransactionDate <= @to
-                AND st.Section = @section";
+                AND st.Section = @section
+                AND (st.IsCancelled IS NULL OR st.IsCancelled = 0) ";
             
             command.Parameters.AddWithValue("@from", from);
             command.Parameters.AddWithValue("@to", to);
@@ -273,6 +274,7 @@ namespace TransFundInventory.Data
                 LEFT JOIN Categories c ON p.CategoryId = c.Id
                 WHERE date(st.TransactionDate) = date(@date)
                 AND st.Section = @section
+                AND (st.IsCancelled IS NULL OR st.IsCancelled = 0) 
                 GROUP BY c.Name";
             
             command.Parameters.AddWithValue("@date", date.ToString("yyyy-MM-dd"));
@@ -300,6 +302,7 @@ namespace TransFundInventory.Data
             command.CommandText = @"
                 SELECT 
                     MAX(si.Id) as Id,
+                    st.Id AS SalesTransactionId,
                     st.TransactionDate,
                     st.OrderNumber,
                     p.Name AS ProductName,
@@ -309,7 +312,8 @@ namespace TransFundInventory.Data
                     si.CostAtSale AS CostPrice,
                     SUM((si.PriceAtSale - si.CostAtSale) * si.Quantity) AS Profit,
                     st.PaymentMethod,
-                    u.FullName AS Cashier
+                    u.FullName AS Cashier,
+                    COALESCE(st.IsCancelled, 0) AS IsCancelled
                 FROM SalesItems si
                 JOIN SalesTransactions st ON si.SalesTransactionId = st.Id
                 JOIN Products p ON si.ProductId = p.Id
@@ -317,7 +321,7 @@ namespace TransFundInventory.Data
                 WHERE st.TransactionDate >= @from 
                   AND st.TransactionDate <= @to
                   AND st.Section = @section
-                GROUP BY st.OrderNumber, p.Name, st.TransactionDate, si.PriceAtSale, si.CostAtSale, st.PaymentMethod, u.FullName
+                GROUP BY st.Id, st.OrderNumber, p.Name, st.TransactionDate, si.PriceAtSale, si.CostAtSale, st.PaymentMethod, u.FullName, st.IsCancelled
                 ORDER BY st.TransactionDate DESC";
 
             command.Parameters.AddWithValue("@from", from);
@@ -339,7 +343,9 @@ namespace TransFundInventory.Data
                     CostPrice = reader.GetDouble(reader.GetOrdinal("CostPrice")),
                     Profit = reader.GetDouble(reader.GetOrdinal("Profit")),
                     PaymentMethod = reader.IsDBNull(reader.GetOrdinal("PaymentMethod")) ? "Cash" : reader.GetString(reader.GetOrdinal("PaymentMethod")),
-                    Cashier = reader.GetString(reader.GetOrdinal("Cashier"))
+                    Cashier = reader.GetString(reader.GetOrdinal("Cashier")),
+                    SalesTransactionId = reader.GetInt32(reader.GetOrdinal("SalesTransactionId")),
+                    IsCancelled = reader.GetInt32(reader.GetOrdinal("IsCancelled")) == 1
                 });
             }
 
@@ -391,6 +397,7 @@ namespace TransFundInventory.Data
                 JOIN Users u ON t.UserId = u.Id
                 LEFT JOIN SalesItems i ON t.Id = i.SalesTransactionId
                 WHERE t.Section = @section AND t.TransactionDate >= @from AND t.TransactionDate <= @to
+                  AND (t.IsCancelled IS NULL OR t.IsCancelled = 0) 
                 GROUP BY u.FullName
                 ORDER BY GrossSales DESC";
 
@@ -435,6 +442,7 @@ namespace TransFundInventory.Data
                 LEFT JOIN Categories c ON p.CategoryId = c.Id
                 WHERE t.Section = @section 
                   AND date(t.TransactionDate) BETWEEN date(@from) AND date(@to)
+                  AND (t.IsCancelled IS NULL OR t.IsCancelled = 0) 
                 ORDER BY p.Name";
 
             using var connection = DatabaseHelper.GetConnection();
@@ -460,6 +468,153 @@ namespace TransFundInventory.Data
             }
 
             return details;
+        }
+
+        public void VoidTransaction(int transactionId, int userId)
+        {
+            using var connection = DatabaseHelper.GetConnection();
+            connection.Open();
+            using var transaction = connection.BeginTransaction();
+
+            try
+            {
+                // 1. Mark transaction as cancelled
+                var voidCmd = connection.CreateCommand();
+                voidCmd.Transaction = transaction;
+                voidCmd.CommandText = @"
+                    UPDATE SalesTransactions 
+                    SET IsCancelled = 1, CancelledBy = @userId, CancelledDate = @date 
+                    WHERE Id = @txId";
+                voidCmd.Parameters.AddWithValue("@userId", userId);
+                voidCmd.Parameters.AddWithValue("@date", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+                voidCmd.Parameters.AddWithValue("@txId", transactionId);
+                voidCmd.ExecuteNonQuery();
+
+                // 2. Get items and return to stock
+                var itemsCmd = connection.CreateCommand();
+                itemsCmd.Transaction = transaction;
+                itemsCmd.CommandText = "SELECT ProductId, Quantity FROM SalesItems WHERE SalesTransactionId = @txId";
+                itemsCmd.Parameters.AddWithValue("@txId", transactionId);
+                
+                var itemsToReturn = new List<(int Pid, int Qty)>();
+                using (var reader = itemsCmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        itemsToReturn.Add((reader.GetInt32(0), reader.GetInt32(1)));
+                    }
+                }
+
+                foreach (var item in itemsToReturn)
+                {
+                    var stockCmd = connection.CreateCommand();
+                    stockCmd.Transaction = transaction;
+                    stockCmd.CommandText = "UPDATE Products SET Quantity = Quantity + @qty WHERE Id = @pid";
+                    stockCmd.Parameters.AddWithValue("@qty", item.Qty);
+                    stockCmd.Parameters.AddWithValue("@pid", item.Pid);
+                    stockCmd.ExecuteNonQuery();
+                }
+
+                // 3. Log to audit
+                var logCmd = connection.CreateCommand();
+                logCmd.Transaction = transaction;
+                logCmd.CommandText = @"
+                    INSERT INTO AuditLogs (UserId, Action, Details, Timestamp) 
+                    VALUES (@userId, 'Void Order', @details, @ts)";
+                logCmd.Parameters.AddWithValue("@userId", userId);
+                logCmd.Parameters.AddWithValue("@details", $"Voided Transaction ID: {transactionId}");
+                logCmd.Parameters.AddWithValue("@ts", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+                logCmd.ExecuteNonQuery();
+
+                transaction.Commit();
+            }
+            catch
+            {
+                transaction.Rollback();
+                throw;
+            }
+        }
+
+        public List<ShiftSalesDetail> GetCancelledOrders(DateTime fromDate, DateTime toDate)
+        {
+            var details = new List<ShiftSalesDetail>();
+            string sql = @"
+                SELECT 
+                    p.Name AS ProductName,
+                    COALESCE(c.Name, 'Uncategorized') AS CategoryName,
+                    i.CostAtSale AS BuyingPrice,
+                    i.PriceAtSale AS SellingPrice,
+                    i.Quantity AS QtySold,
+                    t.TransactionDate
+                FROM SalesItems i
+                JOIN SalesTransactions t ON i.SalesTransactionId = t.Id
+                JOIN Products p ON i.ProductId = p.Id
+                LEFT JOIN Categories c ON p.CategoryId = c.Id
+                WHERE t.Section = @section 
+                  AND date(t.TransactionDate) BETWEEN date(@from) AND date(@to)
+                  AND t.IsCancelled = 1
+                ORDER BY t.TransactionDate DESC";
+
+            using var connection = DatabaseHelper.GetConnection();
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = sql;
+            command.Parameters.AddWithValue("@section", Section);
+            command.Parameters.AddWithValue("@from", fromDate.ToString("yyyy-MM-dd"));
+            command.Parameters.AddWithValue("@to", toDate.ToString("yyyy-MM-dd"));
+
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                details.Add(new ShiftSalesDetail
+                {
+                    ProductName = reader.GetString(0),
+                    CategoryName = reader.IsDBNull(1) ? "Uncategorized" : reader.GetString(1),
+                    BuyingPrice = reader.GetDouble(2),
+                    SellingPrice = reader.GetDouble(3),
+                    QtySold = reader.GetInt32(4),
+                    TransactionTime = reader.GetString(5)
+                });
+            }
+
+            return details;
+        }
+
+        public List<SalesTransaction> GetRecentTransactions(int count = 20)
+        {
+            var transactions = new List<SalesTransaction>();
+            using var connection = DatabaseHelper.GetConnection();
+            connection.Open();
+
+            var command = connection.CreateCommand();
+            command.CommandText = @"
+                SELECT t.*, u.FullName as UserName
+                FROM SalesTransactions t
+                JOIN Users u ON t.UserId = u.Id
+                WHERE t.Section = @section
+                ORDER BY t.TransactionDate DESC
+                LIMIT @count";
+            command.Parameters.AddWithValue("@section", Section);
+            command.Parameters.AddWithValue("@count", count);
+
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                transactions.Add(new SalesTransaction
+                {
+                    Id = reader.GetInt32(reader.GetOrdinal("Id")),
+                    OrderNumber = reader.IsDBNull(reader.GetOrdinal("OrderNumber")) ? "" : reader.GetString(reader.GetOrdinal("OrderNumber")),
+                    TransactionDate = reader.GetString(reader.GetOrdinal("TransactionDate")),
+                    TotalAmount = reader.GetDouble(reader.GetOrdinal("TotalAmount")),
+                    CashTendered = reader.GetDouble(reader.GetOrdinal("CashTendered")),
+                    ChangeAmount = reader.GetDouble(reader.GetOrdinal("ChangeAmount")),
+                    UserId = reader.GetInt32(reader.GetOrdinal("UserId")),
+                    UserName = reader.GetString(reader.GetOrdinal("UserName")),
+                    CustomerName = reader.IsDBNull(reader.GetOrdinal("CustomerName")) ? null : reader.GetString(reader.GetOrdinal("CustomerName")),
+                    IsCancelled = reader.GetInt32(reader.GetOrdinal("IsCancelled")) == 1
+                });
+            }
+            return transactions;
         }
     }
 }

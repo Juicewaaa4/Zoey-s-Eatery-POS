@@ -38,6 +38,7 @@ namespace TransFundInventory.Forms
         public ReportsControl()
         {
             InitializeComponent();
+            LoadSavedShiftTimes();
             LoadAllReports();
         }
 
@@ -339,15 +340,24 @@ namespace TransFundInventory.Forms
 
             var lblMorningStart = new Label { Text = "Morning Start:", Font = new Font("Segoe UI", 9, FontStyle.Bold), ForeColor = Color.FromArgb(39, 174, 96), Location = new Point(200, 12), AutoSize = true };
             dtpMorningStart = new DateTimePicker { Location = new Point(300, 8), Size = new Size(95, 28), Font = new Font("Segoe UI", 9), Format = DateTimePickerFormat.Custom, CustomFormat = "hh:mm tt", ShowUpDown = true, Value = DateTime.Today.AddHours(8) };
-            dtpMorningStart.ValueChanged += (s, e) => LoadShiftSales();
+            dtpMorningStart.ValueChanged += (s, e) => { 
+                SettingsRepository.SaveSetting("MorningStart", dtpMorningStart.Value.ToString("HH:mm"));
+                LoadShiftSales(); 
+            };
 
             var lblNightStart = new Label { Text = "Night Start:", Font = new Font("Segoe UI", 9, FontStyle.Bold), ForeColor = Color.FromArgb(230, 126, 34), Location = new Point(410, 12), AutoSize = true };
             dtpNightStart = new DateTimePicker { Location = new Point(498, 8), Size = new Size(95, 28), Font = new Font("Segoe UI", 9), Format = DateTimePickerFormat.Custom, CustomFormat = "hh:mm tt", ShowUpDown = true, Value = DateTime.Today.AddHours(16) };
-            dtpNightStart.ValueChanged += (s, e) => LoadShiftSales();
+            dtpNightStart.ValueChanged += (s, e) => {
+                SettingsRepository.SaveSetting("NightStart", dtpNightStart.Value.ToString("HH:mm"));
+                LoadShiftSales();
+            };
 
             var lblNightEnd = new Label { Text = "Night End:", Font = new Font("Segoe UI", 9, FontStyle.Bold), ForeColor = Color.FromArgb(231, 76, 60), Location = new Point(608, 12), AutoSize = true };
             dtpNightEnd = new DateTimePicker { Location = new Point(690, 8), Size = new Size(95, 28), Font = new Font("Segoe UI", 9), Format = DateTimePickerFormat.Custom, CustomFormat = "hh:mm tt", ShowUpDown = true, Value = DateTime.Today.AddHours(2).AddMinutes(30) };
-            dtpNightEnd.ValueChanged += (s, e) => LoadShiftSales();
+            dtpNightEnd.ValueChanged += (s, e) => {
+                SettingsRepository.SaveSetting("NightEnd", dtpNightEnd.Value.ToString("HH:mm"));
+                LoadShiftSales();
+            };
 
             // Row 2: Export buttons — Morning & Night separate
             var btnMorningExcel = new Button
@@ -459,6 +469,22 @@ namespace TransFundInventory.Forms
             LoadTransactionHistory();
             LoadStockHistory();
             LoadShiftSales();
+        }
+
+        private void LoadSavedShiftTimes()
+        {
+            var morningStart = SettingsRepository.GetSetting("MorningStart");
+            var nightStart = SettingsRepository.GetSetting("NightStart");
+            var nightEnd = SettingsRepository.GetSetting("NightEnd");
+
+            if (TimeSpan.TryParse(morningStart, out var mStart))
+                dtpMorningStart.Value = DateTime.Today.Date.Add(mStart);
+            
+            if (TimeSpan.TryParse(nightStart, out var nStart))
+                dtpNightStart.Value = DateTime.Today.Date.Add(nStart);
+
+            if (TimeSpan.TryParse(nightEnd, out var nEnd))
+                dtpNightEnd.Value = DateTime.Today.Date.Add(nEnd);
         }
 
         private void LoadLowStock()
@@ -612,7 +638,8 @@ namespace TransFundInventory.Forms
                     Qty = d.QtySold,
                     Price = d.UnitPrice,
                     Subtotal = d.Subtotal,
-                    Cashier = d.Cashier
+                    Cashier = d.Cashier,
+                    Status = d.IsCancelled ? "❌ CANCELLED" : "✅ ACTIVE"
                 }).ToList();
 
             // Format currency columns
@@ -626,6 +653,16 @@ namespace TransFundInventory.Forms
 
             // Force immediate UI refresh
             dgvHistory.Refresh();
+            
+            // Highlight cancelled rows in Red
+            foreach (DataGridViewRow row in dgvHistory.Rows)
+            {
+                if (row.Cells["Status"].Value?.ToString()?.Contains("CANCELLED") == true)
+                {
+                    row.DefaultCellStyle.ForeColor = Color.Red;
+                    row.DefaultCellStyle.SelectionForeColor = Color.Red;
+                }
+            }
             this.Update();
         }
 
@@ -953,6 +990,7 @@ namespace TransFundInventory.Forms
             TimeSpan morningStart = dtpMorningStart.Value.TimeOfDay;
             TimeSpan nightStart = dtpNightStart.Value.TimeOfDay;
             var (morningDetails, nightDetails) = SplitShiftDetails(details, shiftDate, morningStart, nightStart, dtpNightEnd.Value.TimeOfDay);
+            var cancelledDetails = _salesRepo.GetCancelledOrders(shiftDate, nextDay);
 
             if (shiftType == "Morning" && morningDetails.Count == 0)
             {
@@ -976,8 +1014,8 @@ namespace TransFundInventory.Forms
             var path = ExportHelper.ShowSaveDialog("Excel Files|*.xlsx", fileName);
             if (path != null)
             {
-                ExportHelper.ExportShiftSalesExcel(morningDetails, nightDetails, path, shiftType);
-                MessageBox.Show($"{shiftType} Shift Export Successful!\n\nMorning: {morningDetails.Count} items\nNight: {nightDetails.Count} items", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ExportHelper.ExportShiftSalesExcel(morningDetails, nightDetails, cancelledDetails, path, shiftType);
+                MessageBox.Show($"{shiftType} Shift Export Successful!\n\nMorning: {morningDetails.Count} items\nNight: {nightDetails.Count} items\nCancelled: {cancelledDetails.Count} items", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
         }
 

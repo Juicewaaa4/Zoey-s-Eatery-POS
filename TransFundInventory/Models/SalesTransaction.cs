@@ -12,6 +12,9 @@ namespace TransFundInventory.Models
         public string? CustomerName { get; set; }
         public string PaymentMethod { get; set; } = "Cash";
         public string? ReferenceNumber { get; set; }
+        public bool IsCancelled { get; set; }
+        public int? CancelledBy { get; set; }
+        public string? CancelledDate { get; set; }
 
         // Navigation properties (not directly stored in the same row but useful for UI)
         public string UserName { get; set; } = string.Empty;

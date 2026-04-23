@@ -70,6 +70,21 @@ namespace TransFundInventory.Forms
                 Dock = DockStyle.Fill,
                 TextAlign = ContentAlignment.MiddleCenter
             };
+            var btnRecent = new Button
+            {
+                Text = "📄 Recent Orders (F9)",
+                Font = new Font("Segoe UI", 8, FontStyle.Bold),
+                ForeColor = Color.White,
+                BackColor = Color.FromArgb(46, 125, 50),
+                FlatStyle = FlatStyle.Flat,
+                Width = 140,
+                Height = 24,
+                Cursor = Cursors.Hand,
+                Location = new Point(panelShortcuts.Width - 150, 4)
+            };
+            btnRecent.FlatAppearance.BorderSize = 0;
+            btnRecent.Click += (s, e) => { ShowRecentOrders(); };
+            panelShortcuts.Controls.Add(btnRecent);
             panelShortcuts.Controls.Add(lblShortcuts);
 
             // ==================== LEFT SIDE (PRODUCTS) ====================
@@ -625,6 +640,13 @@ namespace TransFundInventory.Forms
             }
         }
 
+        private void ShowRecentOrders()
+        {
+            using var dialog = new RecentOrdersDialog();
+            dialog.ShowDialog();
+            LoadProducts(txtSearch.Text); // Refresh in case stock was returned
+        }
+
 
 
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
@@ -650,6 +672,9 @@ namespace TransFundInventory.Forms
                     return true;
                 case Keys.F12:
                     BtnCheckout_Click(this, EventArgs.Empty);
+                    return true;
+                case Keys.F9:
+                    ShowRecentOrders();
                     return true;
             }
             return base.ProcessCmdKey(ref msg, keyData);
