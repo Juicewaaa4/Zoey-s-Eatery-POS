@@ -1014,7 +1014,7 @@ namespace TransFundInventory.Forms
             var path = ExportHelper.ShowSaveDialog("Excel Files|*.xlsx", fileName);
             if (path != null)
             {
-                ExportHelper.ExportShiftSalesExcel(morningDetails, nightDetails, cancelledDetails, path, shiftType);
+                ExportHelper.ExportShiftSalesExcel(morningDetails, nightDetails, cancelledDetails, path, shiftType, shiftDate);
                 MessageBox.Show($"{shiftType} Shift Export Successful!\n\nMorning: {morningDetails.Count} items\nNight: {nightDetails.Count} items\nCancelled: {cancelledDetails.Count} items", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
         }

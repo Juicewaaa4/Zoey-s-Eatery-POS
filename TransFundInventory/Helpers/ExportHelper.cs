@@ -1033,10 +1033,10 @@ namespace TransFundInventory.Helpers
             TimeSpan morningStart = TimeSpan.Parse(morningStartStr);
             var (morningDetails, nightDetails) = SplitShiftDetails(details, shiftDate, morningStart, nightStart);
             var cancelledDetails = new SalesRepository().GetCancelledOrders(shiftDate, shiftDate.AddDays(1));
-            ExportShiftSalesExcel(morningDetails, nightDetails, cancelledDetails, filePath, shiftType);
+            ExportShiftSalesExcel(morningDetails, nightDetails, cancelledDetails, filePath, shiftType, shiftDate);
         }
 
-        public static void ExportShiftSalesExcel(List<ShiftSalesDetail> morningDetails, List<ShiftSalesDetail> nightDetails, List<ShiftSalesDetail> cancelledDetails, string filePath, string shiftType = "Both")
+        public static void ExportShiftSalesExcel(List<ShiftSalesDetail> morningDetails, List<ShiftSalesDetail> nightDetails, List<ShiftSalesDetail> cancelledDetails, string filePath, string shiftType = "Both", DateTime? shiftDate = null)
         {
             using var workbook = new XLWorkbook();
 
@@ -1044,7 +1044,21 @@ namespace TransFundInventory.Helpers
             {
                 // Single sheet with Morning on top and Night below
                 var ws = workbook.Worksheets.Add("Shift Sales Report");
-                int nextStartRow = WriteShiftSection(ws, "Morning Shift", morningDetails, XLColor.FromHtml("#6aa84f"), 1);
+                
+                // --- Add Top Headers ---
+                if (shiftDate.HasValue)
+                {
+                    ws.Cell(1, 4).Value = $"DATE : {shiftDate.Value:MMMM dd, yyyy}".ToUpper();
+                    ws.Cell(1, 4).Style.Font.Bold = true;
+                    ws.Range(1, 4, 1, 6).Merge();
+                    ws.Range(1, 4, 1, 6).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                }
+                
+                string sectionName = SessionManager.CurrentSection.ToUpper();
+                ws.Cell(2, 1).Value = sectionName;
+                ws.Cell(2, 1).Style.Font.Bold = true;
+
+                int nextStartRow = WriteShiftSection(ws, "Morning Shift", morningDetails, XLColor.FromHtml("#6aa84f"), 4);
                 nextStartRow += 2; // Gap between sections
                 int nightEndRow = WriteShiftSection(ws, "Night Shift", nightDetails, XLColor.FromHtml("#6aa84f"), nextStartRow);
                 
@@ -1064,21 +1078,47 @@ namespace TransFundInventory.Helpers
             else if (shiftType == "Morning")
             {
                 var ws = workbook.Worksheets.Add("Morning Shift Report");
-                int endRow = WriteShiftSection(ws, "Morning Shift", morningDetails, XLColor.FromHtml("#6aa84f"), 1);
+                
+                // --- Add Top Headers ---
+                if (shiftDate.HasValue)
+                {
+                    ws.Cell(1, 4).Value = $"DATE : {shiftDate.Value:MMMM dd, yyyy}".ToUpper();
+                    ws.Cell(1, 4).Style.Font.Bold = true;
+                    ws.Range(1, 4, 1, 6).Merge();
+                    ws.Range(1, 4, 1, 6).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                }
+                ws.Cell(2, 1).Value = SessionManager.CurrentSection.ToUpper();
+                ws.Cell(2, 1).Style.Font.Bold = true;
+
+                int endRow = WriteShiftSection(ws, "Morning Shift", morningDetails, XLColor.FromHtml("#6aa84f"), 4);
                 if (cancelledDetails != null && cancelledDetails.Count > 0)
                 {
                     WriteShiftSection(ws, "Cancelled Orders", cancelledDetails, XLColor.FromHtml("#cc0000"), endRow + 2);
                 }
+                WriteSidePanels(ws, morningDetails, new List<ShiftSalesDetail>(), 10);
                 ws.Columns().AdjustToContents();
             }
             else if (shiftType == "Night")
             {
                 var ws = workbook.Worksheets.Add("Night Shift Report");
-                int endRow = WriteShiftSection(ws, "Night Shift", nightDetails, XLColor.FromHtml("#6aa84f"), 1);
+                
+                // --- Add Top Headers ---
+                if (shiftDate.HasValue)
+                {
+                    ws.Cell(1, 4).Value = $"DATE : {shiftDate.Value:MMMM dd, yyyy}".ToUpper();
+                    ws.Cell(1, 4).Style.Font.Bold = true;
+                    ws.Range(1, 4, 1, 6).Merge();
+                    ws.Range(1, 4, 1, 6).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                }
+                ws.Cell(2, 1).Value = SessionManager.CurrentSection.ToUpper();
+                ws.Cell(2, 1).Style.Font.Bold = true;
+
+                int endRow = WriteShiftSection(ws, "Night Shift", nightDetails, XLColor.FromHtml("#6aa84f"), 4);
                 if (cancelledDetails != null && cancelledDetails.Count > 0)
                 {
                     WriteShiftSection(ws, "Cancelled Orders", cancelledDetails, XLColor.FromHtml("#cc0000"), endRow + 2);
                 }
+                WriteSidePanels(ws, new List<ShiftSalesDetail>(), nightDetails, 10);
                 ws.Columns().AdjustToContents();
             }
             
@@ -1221,61 +1261,7 @@ namespace TransFundInventory.Helpers
         /// </summary>
         private static void WriteSidePanels(IXLWorksheet ws, List<ShiftSalesDetail> morningData, List<ShiftSalesDetail> nightData, int sideCol)
         {
-            int r = 1;
-
-            // ── Morning Category Breakdown ──
-            ws.Cell(r, sideCol).Value = "Morning";
-            ws.Range(r, sideCol, r, sideCol + 1).Merge();
-            ws.Range(r, sideCol, r, sideCol + 1).Style.Fill.BackgroundColor = XLColor.FromHtml("#6aa84f");
-            ws.Range(r, sideCol, r, sideCol + 1).Style.Font.FontColor = XLColor.White;
-            ws.Range(r, sideCol, r, sideCol + 1).Style.Font.Bold = true;
-            ws.Range(r, sideCol, r, sideCol + 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-            r++;
-
-            var morningCats = morningData.GroupBy(d => d.CategoryName).Select(g => new { Cat = g.Key, Total = g.Sum(x => x.GrossIncome) }).OrderByDescending(x => x.Total).ToList();
-            double morningTotal = 0;
-            foreach (var c in morningCats)
-            {
-                ws.Cell(r, sideCol).Value = c.Cat;
-                ws.Cell(r, sideCol + 1).Value = c.Total;
-                ws.Cell(r, sideCol + 1).Style.NumberFormat.Format = "_([$₱-469]* #,##0.00_);_([$₱-469]* (#,##0.00);_([$₱-469]* \"-\"??_);_(@_)";
-                morningTotal += c.Total;
-                r++;
-            }
-            ws.Cell(r, sideCol).Value = "Total";
-            ws.Cell(r, sideCol).Style.Font.Bold = true;
-            ws.Cell(r, sideCol + 1).Value = morningTotal;
-            ws.Cell(r, sideCol + 1).Style.Font.Bold = true;
-            ws.Cell(r, sideCol + 1).Style.NumberFormat.Format = "_([$₱-469]* #,##0.00_);_([$₱-469]* (#,##0.00);_([$₱-469]* \"-\"??_);_(@_)";
-            ws.Cell(r, sideCol + 1).Style.Font.FontColor = XLColor.FromHtml("#27ae60");
-            r += 2;
-
-            // ── Night Category Breakdown ──
-            ws.Cell(r, sideCol).Value = "Night";
-            ws.Range(r, sideCol, r, sideCol + 1).Merge();
-            ws.Range(r, sideCol, r, sideCol + 1).Style.Fill.BackgroundColor = XLColor.FromHtml("#6aa84f");
-            ws.Range(r, sideCol, r, sideCol + 1).Style.Font.FontColor = XLColor.White;
-            ws.Range(r, sideCol, r, sideCol + 1).Style.Font.Bold = true;
-            ws.Range(r, sideCol, r, sideCol + 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-            r++;
-
-            var nightCats = nightData.GroupBy(d => d.CategoryName).Select(g => new { Cat = g.Key, Total = g.Sum(x => x.GrossIncome) }).OrderByDescending(x => x.Total).ToList();
-            double nightTotal = 0;
-            foreach (var c in nightCats)
-            {
-                ws.Cell(r, sideCol).Value = c.Cat;
-                ws.Cell(r, sideCol + 1).Value = c.Total;
-                ws.Cell(r, sideCol + 1).Style.NumberFormat.Format = "_([$₱-469]* #,##0.00_);_([$₱-469]* (#,##0.00);_([$₱-469]* \"-\"??_);_(@_)";
-                nightTotal += c.Total;
-                r++;
-            }
-            ws.Cell(r, sideCol).Value = "Total";
-            ws.Cell(r, sideCol).Style.Font.Bold = true;
-            ws.Cell(r, sideCol + 1).Value = nightTotal;
-            ws.Cell(r, sideCol + 1).Style.Font.Bold = true;
-            ws.Cell(r, sideCol + 1).Style.NumberFormat.Format = "_([$₱-469]* #,##0.00_);_([$₱-469]* (#,##0.00);_([$₱-469]* \"-\"??_);_(@_)";
-            ws.Cell(r, sideCol + 1).Style.Font.FontColor = XLColor.FromHtml("#27ae60");
-            r += 2;
+            int r = 4; // Align with the start of the first table
 
             // ── Overall Breakdown ──
             ws.Cell(r, sideCol).Value = "Breakdown";
@@ -1297,7 +1283,7 @@ namespace TransFundInventory.Helpers
                 grandTotal += c.Total;
                 r++;
             }
-            ws.Cell(r, sideCol).Value = "Sales Total";
+            ws.Cell(r, sideCol).Value = "TOTAL";
             ws.Cell(r, sideCol).Style.Font.Bold = true;
             ws.Cell(r, sideCol + 1).Value = grandTotal;
             ws.Cell(r, sideCol + 1).Style.Font.Bold = true;
