@@ -1131,7 +1131,7 @@ namespace TransFundInventory.Helpers
         {
             // Shift title row
             ws.Cell(startRow, 1).Value = sheetName;
-            var titleRange = ws.Range(startRow, 1, startRow, 8);
+            var titleRange = ws.Range(startRow, 1, startRow, 6);
             titleRange.Merge();
             titleRange.Style.Font.Bold = true;
             titleRange.Style.Font.FontColor = XLColor.White;
@@ -1142,7 +1142,7 @@ namespace TransFundInventory.Helpers
 
             // Column headers
             int headerRow = startRow + 1;
-            var headers = new[] { "Product Sold", "Unit Cost", "Selling Price", "SOLD", "TOTAL COST", "GROSS INCOME", "NET INCOME", "PERCENTAGE" };
+            var headers = new[] { "Product Sold", "SOLD", "GROSS INCOME", "TOTAL COST", "NET INCOME", "PERCENTAGE" };
             for (int i = 0; i < headers.Length; i++)
             {
                 var cell = ws.Cell(headerRow, i + 1);
@@ -1155,7 +1155,7 @@ namespace TransFundInventory.Helpers
             }
 
             // Enable AutoFilter on header
-            ws.Range(headerRow, 1, headerRow, 8).SetAutoFilter();
+            ws.Range(headerRow, 1, headerRow, 6).SetAutoFilter();
 
             // Data rows
             int row = headerRow + 1;
@@ -1164,21 +1164,23 @@ namespace TransFundInventory.Helpers
             foreach (var d in data)
             {
                 bool isAlt = (row - (headerRow + 1)) % 2 == 1;
+                double cost = d.BuyingPrice * d.QtySold;
+                double gross = d.SellingPrice * d.QtySold;
+                double net = gross - cost;
+
                 ws.Cell(row, 1).Value = d.ProductName;
-                ws.Cell(row, 2).Value = d.BuyingPrice;
-                ws.Cell(row, 3).Value = d.SellingPrice;
-                ws.Cell(row, 4).Value = d.QtySold;
-                ws.Cell(row, 5).Value = d.BuyingPrice * d.QtySold; // Explicitly multiply to ensure Total Cost is correct
-                ws.Cell(row, 6).Value = d.SellingPrice * d.QtySold; // Explicitly multiply
-                ws.Cell(row, 7).Value = (d.SellingPrice * d.QtySold) - (d.BuyingPrice * d.QtySold); // Explicitly calculate Net Profit
-                ws.Cell(row, 8).Value = d.Percentage / 100.0;
+                ws.Cell(row, 2).Value = d.QtySold;
+                ws.Cell(row, 3).Value = gross; 
+                ws.Cell(row, 4).Value = cost; 
+                ws.Cell(row, 5).Value = net; 
+                double rowPerc = gross > 0 ? net / gross : 0;
+                ws.Cell(row, 6).Value = rowPerc;
 
-                ws.Range(row, 2, row, 3).Style.NumberFormat.Format = "_([$₱-469]* #,##0.00_);_([$₱-469]* (#,##0.00);_([$₱-469]* \"-\"??_);_(@_)";
-                ws.Range(row, 5, row, 7).Style.NumberFormat.Format = "_([$₱-469]* #,##0.00_);_([$₱-469]* (#,##0.00);_([$₱-469]* \"-\"??_);_(@_)";
-                ws.Cell(row, 8).Style.NumberFormat.Format = "0%";
-                ws.Cell(row, 4).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                ws.Range(row, 3, row, 5).Style.NumberFormat.Format = "_([$₱-469]* #,##0.00_);_([$₱-469]* (#,##0.00);_([$₱-469]* \"-\"??_);_(@_)";
+                ws.Cell(row, 6).Style.NumberFormat.Format = "0%";
+                ws.Cell(row, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
 
-                for (int c = 1; c <= 8; c++)
+                for (int c = 1; c <= 6; c++)
                 {
                     var cell = ws.Cell(row, c);
                     cell.Style.Fill.BackgroundColor = isAlt ? XLColor.FromArgb(246, 250, 246) : XLColor.White;
@@ -1187,9 +1189,9 @@ namespace TransFundInventory.Helpers
                     cell.Style.Font.FontSize = 10;
                 }
 
-                totalDist += d.DistributorPrice;
-                totalGross += d.GrossIncome;
-                totalNet += d.NetIncome;
+                totalDist += cost;
+                totalGross += gross;
+                totalNet += net;
                 row++;
             }
 
@@ -1200,16 +1202,16 @@ namespace TransFundInventory.Helpers
                 ws.Cell(row, 1).Style.Font.Bold = true;
                 ws.Cell(row, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
 
-                ws.Cell(row, 5).Value = totalDist;
-                ws.Cell(row, 6).Value = totalGross;
-                ws.Cell(row, 7).Value = totalNet;
+                ws.Cell(row, 3).Value = totalGross;
+                ws.Cell(row, 4).Value = totalDist;
+                ws.Cell(row, 5).Value = totalNet;
                 double perc = totalGross > 0 ? totalNet / totalGross : 0;
-                ws.Cell(row, 8).Value = perc;
+                ws.Cell(row, 6).Value = perc;
 
-                ws.Range(row, 5, row, 7).Style.NumberFormat.Format = "_([$₱-469]* #,##0.00_);_([$₱-469]* (#,##0.00);_([$₱-469]* \"-\"??_);_(@_)";
-                ws.Cell(row, 8).Style.NumberFormat.Format = "0%";
+                ws.Range(row, 3, row, 5).Style.NumberFormat.Format = "_([$₱-469]* #,##0.00_);_([$₱-469]* (#,##0.00);_([$₱-469]* \"-\"??_);_(@_)";
+                ws.Cell(row, 6).Style.NumberFormat.Format = "0%";
 
-                var totalRowRange = ws.Range(row, 1, row, 8);
+                var totalRowRange = ws.Range(row, 1, row, 6);
                 totalRowRange.Style.Font.Bold = true;
                 totalRowRange.Style.Fill.BackgroundColor = XLColor.FromArgb(232, 242, 232);
                 totalRowRange.Style.Border.TopBorder = XLBorderStyleValues.Thin;
@@ -1224,18 +1226,18 @@ namespace TransFundInventory.Helpers
         {
             if (data.Count == 0) return;
 
-            double totalDist = data.Sum(d => d.DistributorPrice);
-            double totalGross = data.Sum(d => d.GrossIncome);
-            double totalNet = data.Sum(d => d.NetIncome);
+            double totalCost = data.Sum(d => d.BuyingPrice * d.QtySold);
+            double totalGross = data.Sum(d => d.SellingPrice * d.QtySold);
+            double totalNet = totalGross - totalCost;
             double totalPerc = totalGross > 0 ? totalNet / totalGross : 0;
 
             // Totals Header Row
-            ws.Cell(row, 5).Value = "DISTRIBUTOR PRICE";
-            ws.Cell(row, 6).Value = "GROSS INCOME";
-            ws.Cell(row, 7).Value = "NET INCOME";
-            ws.Cell(row, 8).Value = "PERCENTAGE";
+            ws.Cell(row, 3).Value = "GROSS INCOME";
+            ws.Cell(row, 4).Value = "COST OF SALES";
+            ws.Cell(row, 5).Value = "NET INCOME";
+            ws.Cell(row, 6).Value = "PERCENTAGE";
             
-            var totalsHeaderRange = ws.Range(row, 5, row, 8);
+            var totalsHeaderRange = ws.Range(row, 3, row, 6);
             totalsHeaderRange.Style.Fill.BackgroundColor = XLColor.FromHtml("#ed7d31"); // Orange header
             totalsHeaderRange.Style.Font.Bold = true;
             totalsHeaderRange.Style.Font.FontColor = XLColor.White;
@@ -1243,17 +1245,17 @@ namespace TransFundInventory.Helpers
             row++;
 
             // Totals Value Row
-            ws.Cell(row, 5).Value = totalDist;
-            ws.Cell(row, 6).Value = totalGross;
-            ws.Cell(row, 7).Value = totalNet;
-            ws.Cell(row, 8).Value = totalPerc;
+            ws.Cell(row, 3).Value = totalGross;
+            ws.Cell(row, 4).Value = totalCost;
+            ws.Cell(row, 5).Value = totalNet;
+            ws.Cell(row, 6).Value = totalPerc;
 
-            var totalsValueRange = ws.Range(row, 1, row, 8);
+            var totalsValueRange = ws.Range(row, 1, row, 6);
             totalsValueRange.Style.Font.Bold = true;
-            ws.Range(row, 5, row, 8).Style.Border.SetOutsideBorder(XLBorderStyleValues.Thin);
+            ws.Range(row, 3, row, 6).Style.Border.SetOutsideBorder(XLBorderStyleValues.Thin);
             
-            ws.Range(row, 5, row, 7).Style.NumberFormat.Format = "_([$₱-469]* #,##0.00_);_([$₱-469]* (#,##0.00);_([$₱-469]* \"-\"??_);_(@_)";
-            ws.Cell(row, 8).Style.NumberFormat.Format = "0%";
+            ws.Range(row, 3, row, 5).Style.NumberFormat.Format = "_([$₱-469]* #,##0.00_);_([$₱-469]* (#,##0.00);_([$₱-469]* \"-\"??_);_(@_)";
+            ws.Cell(row, 6).Style.NumberFormat.Format = "0%";
         }
 
         /// <summary>
