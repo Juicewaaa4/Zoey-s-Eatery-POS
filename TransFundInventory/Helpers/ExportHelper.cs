@@ -1160,6 +1160,7 @@ namespace TransFundInventory.Helpers
             // Data rows
             int row = headerRow + 1;
             double totalDist = 0, totalGross = 0, totalNet = 0;
+            double totalSold = 0;
 
             foreach (var d in data)
             {
@@ -1189,6 +1190,7 @@ namespace TransFundInventory.Helpers
                     cell.Style.Font.FontSize = 10;
                 }
 
+                totalSold += d.QtySold;
                 totalDist += cost;
                 totalGross += gross;
                 totalNet += net;
@@ -1201,6 +1203,10 @@ namespace TransFundInventory.Helpers
                 ws.Cell(row, 1).Value = "TOTAL";
                 ws.Cell(row, 1).Style.Font.Bold = true;
                 ws.Cell(row, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
+
+                ws.Cell(row, 2).Value = totalSold;
+                ws.Cell(row, 2).Style.Font.Bold = true;
+                ws.Cell(row, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
 
                 ws.Cell(row, 3).Value = totalGross;
                 ws.Cell(row, 4).Value = totalDist;
@@ -1230,14 +1236,16 @@ namespace TransFundInventory.Helpers
             double totalGross = data.Sum(d => d.SellingPrice * d.QtySold);
             double totalNet = totalGross - totalCost;
             double totalPerc = totalGross > 0 ? totalNet / totalGross : 0;
+            double totalSold = data.Sum(d => d.QtySold);
 
             // Totals Header Row
+            ws.Cell(row, 2).Value = "TOTAL SOLD";
             ws.Cell(row, 3).Value = "GROSS INCOME";
             ws.Cell(row, 4).Value = "COST OF SALES";
             ws.Cell(row, 5).Value = "NET INCOME";
             ws.Cell(row, 6).Value = "PERCENTAGE";
             
-            var totalsHeaderRange = ws.Range(row, 3, row, 6);
+            var totalsHeaderRange = ws.Range(row, 2, row, 6);
             totalsHeaderRange.Style.Fill.BackgroundColor = XLColor.FromHtml("#ed7d31"); // Orange header
             totalsHeaderRange.Style.Font.Bold = true;
             totalsHeaderRange.Style.Font.FontColor = XLColor.White;
@@ -1245,6 +1253,7 @@ namespace TransFundInventory.Helpers
             row++;
 
             // Totals Value Row
+            ws.Cell(row, 2).Value = totalSold;
             ws.Cell(row, 3).Value = totalGross;
             ws.Cell(row, 4).Value = totalCost;
             ws.Cell(row, 5).Value = totalNet;
@@ -1252,7 +1261,8 @@ namespace TransFundInventory.Helpers
 
             var totalsValueRange = ws.Range(row, 1, row, 6);
             totalsValueRange.Style.Font.Bold = true;
-            ws.Range(row, 3, row, 6).Style.Border.SetOutsideBorder(XLBorderStyleValues.Thin);
+            ws.Range(row, 2, row, 6).Style.Border.SetOutsideBorder(XLBorderStyleValues.Thin);
+            ws.Cell(row, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
             
             ws.Range(row, 3, row, 5).Style.NumberFormat.Format = "_([$₱-469]* #,##0.00_);_([$₱-469]* (#,##0.00);_([$₱-469]* \"-\"??_);_(@_)";
             ws.Cell(row, 6).Style.NumberFormat.Format = "0%";
@@ -1295,51 +1305,54 @@ namespace TransFundInventory.Helpers
             r += 3; // extra gap before Additional Income
 
             // ── Manual Entry: Additional Income ──
-            ws.Cell(r, sideCol).Value = "Additional Income";
-            ws.Range(r, sideCol, r, sideCol + 1).Merge();
-            ws.Range(r, sideCol, r, sideCol + 1).Style.Fill.BackgroundColor = XLColor.FromHtml("#783f04");
-            ws.Range(r, sideCol, r, sideCol + 1).Style.Font.FontColor = XLColor.White;
-            ws.Range(r, sideCol, r, sideCol + 1).Style.Font.Bold = true;
-            ws.Range(r, sideCol, r, sideCol + 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-            r++;
-
-            var manualItems = new[] { "Tako Rent", "Kubo Rent", "Corkage Fee", "Videoke" };
-            int manualStartRow = r;
-            foreach (var item in manualItems)
+            if (SessionManager.CurrentSection != "Eatery")
             {
-                ws.Cell(r, sideCol).Value = item;
-                ws.Cell(r, sideCol).Style.Font.Bold = true;
-                ws.Cell(r, sideCol + 1).Style.NumberFormat.Format = "_([$₱-469]* #,##0.00_);_([$₱-469]* (#,##0.00);_([$₱-469]* \"-\"??_);_(@_)";
-                ws.Cell(r, sideCol + 1).Style.Fill.BackgroundColor = XLColor.FromHtml("#fff2cc");
-                ws.Cell(r, sideCol + 1).Style.Border.SetOutsideBorder(XLBorderStyleValues.Thin);
-                ws.Cell(r, sideCol + 1).Style.Border.OutsideBorderColor = XLColor.FromHtml("#bf9000");
+                ws.Cell(r, sideCol).Value = "Additional Income";
+                ws.Range(r, sideCol, r, sideCol + 1).Merge();
+                ws.Range(r, sideCol, r, sideCol + 1).Style.Fill.BackgroundColor = XLColor.FromHtml("#783f04");
+                ws.Range(r, sideCol, r, sideCol + 1).Style.Font.FontColor = XLColor.White;
+                ws.Range(r, sideCol, r, sideCol + 1).Style.Font.Bold = true;
+                ws.Range(r, sideCol, r, sideCol + 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
                 r++;
+
+                var manualItems = new[] { "Tako Rent", "Kubo Rent", "Corkage Fee", "Videoke" };
+                int manualStartRow = r;
+                foreach (var item in manualItems)
+                {
+                    ws.Cell(r, sideCol).Value = item;
+                    ws.Cell(r, sideCol).Style.Font.Bold = true;
+                    ws.Cell(r, sideCol + 1).Style.NumberFormat.Format = "_([$₱-469]* #,##0.00_);_([$₱-469]* (#,##0.00);_([$₱-469]* \"-\"??_);_(@_)";
+                    ws.Cell(r, sideCol + 1).Style.Fill.BackgroundColor = XLColor.FromHtml("#fff2cc");
+                    ws.Cell(r, sideCol + 1).Style.Border.SetOutsideBorder(XLBorderStyleValues.Thin);
+                    ws.Cell(r, sideCol + 1).Style.Border.OutsideBorderColor = XLColor.FromHtml("#bf9000");
+                    r++;
+                }
+                int manualEndRow = r - 1;
+
+                // Additional Total (sum of manual entries)
+                string manualSumRange = $"{ws.Cell(manualStartRow, sideCol + 1).Address}:{ws.Cell(manualEndRow, sideCol + 1).Address}";
+                ws.Cell(r, sideCol).Value = "Additional Total";
+                ws.Cell(r, sideCol).Style.Font.Bold = true;
+                ws.Cell(r, sideCol + 1).FormulaA1 = $"SUM({manualSumRange})";
+                ws.Cell(r, sideCol + 1).Style.Font.Bold = true;
+                ws.Cell(r, sideCol + 1).Style.NumberFormat.Format = "_([$₱-469]* #,##0.00_);_([$₱-469]* (#,##0.00);_([$₱-469]* \"-\"??_);_(@_)";
+                ws.Range(r, sideCol, r, sideCol + 1).Style.Fill.BackgroundColor = XLColor.FromArgb(232, 240, 248);
+                var additionalTotalCell = ws.Cell(r, sideCol + 1).Address;
+                r += 2;
+
+                // ── Grand Total = Sales Total + Additional Total ──
+                ws.Cell(r, sideCol).Value = "GRAND TOTAL";
+                ws.Cell(r, sideCol).Style.Font.Bold = true;
+                ws.Cell(r, sideCol).Style.Font.FontSize = 12;
+                ws.Cell(r, sideCol + 1).FormulaA1 = $"{salesTotalCell}+{additionalTotalCell}";
+                ws.Cell(r, sideCol + 1).Style.Font.Bold = true;
+                ws.Cell(r, sideCol + 1).Style.Font.FontSize = 12;
+                ws.Cell(r, sideCol + 1).Style.Font.FontColor = XLColor.FromHtml("#27ae60");
+                ws.Cell(r, sideCol + 1).Style.NumberFormat.Format = "_([$₱-469]* #,##0.00_);_([$₱-469]* (#,##0.00);_([$₱-469]* \"-\"??_);_(@_)";
+                ws.Range(r, sideCol, r, sideCol + 1).Style.Fill.BackgroundColor = XLColor.FromArgb(209, 231, 209);
+                ws.Range(r, sideCol, r, sideCol + 1).Style.Border.SetOutsideBorder(XLBorderStyleValues.Medium);
+                ws.Range(r, sideCol, r, sideCol + 1).Style.Border.OutsideBorderColor = XLColor.FromHtml("#27ae60");
             }
-            int manualEndRow = r - 1;
-
-            // Additional Total (sum of manual entries)
-            string manualSumRange = $"{ws.Cell(manualStartRow, sideCol + 1).Address}:{ws.Cell(manualEndRow, sideCol + 1).Address}";
-            ws.Cell(r, sideCol).Value = "Additional Total";
-            ws.Cell(r, sideCol).Style.Font.Bold = true;
-            ws.Cell(r, sideCol + 1).FormulaA1 = $"SUM({manualSumRange})";
-            ws.Cell(r, sideCol + 1).Style.Font.Bold = true;
-            ws.Cell(r, sideCol + 1).Style.NumberFormat.Format = "_([$₱-469]* #,##0.00_);_([$₱-469]* (#,##0.00);_([$₱-469]* \"-\"??_);_(@_)";
-            ws.Range(r, sideCol, r, sideCol + 1).Style.Fill.BackgroundColor = XLColor.FromArgb(232, 240, 248);
-            var additionalTotalCell = ws.Cell(r, sideCol + 1).Address;
-            r += 2;
-
-            // ── Grand Total = Sales Total + Additional Total ──
-            ws.Cell(r, sideCol).Value = "GRAND TOTAL";
-            ws.Cell(r, sideCol).Style.Font.Bold = true;
-            ws.Cell(r, sideCol).Style.Font.FontSize = 12;
-            ws.Cell(r, sideCol + 1).FormulaA1 = $"{salesTotalCell}+{additionalTotalCell}";
-            ws.Cell(r, sideCol + 1).Style.Font.Bold = true;
-            ws.Cell(r, sideCol + 1).Style.Font.FontSize = 12;
-            ws.Cell(r, sideCol + 1).Style.Font.FontColor = XLColor.FromHtml("#27ae60");
-            ws.Cell(r, sideCol + 1).Style.NumberFormat.Format = "_([$₱-469]* #,##0.00_);_([$₱-469]* (#,##0.00);_([$₱-469]* \"-\"??_);_(@_)";
-            ws.Range(r, sideCol, r, sideCol + 1).Style.Fill.BackgroundColor = XLColor.FromArgb(209, 231, 209);
-            ws.Range(r, sideCol, r, sideCol + 1).Style.Border.SetOutsideBorder(XLBorderStyleValues.Medium);
-            ws.Range(r, sideCol, r, sideCol + 1).Style.Border.OutsideBorderColor = XLColor.FromHtml("#27ae60");
         }
 
 

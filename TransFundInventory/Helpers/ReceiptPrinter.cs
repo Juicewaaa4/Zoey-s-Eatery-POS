@@ -78,15 +78,24 @@ namespace TransFundInventory.Helpers
 
                 foreach (var item in items)
                 {
-                    // Truncate name to prevent wrapping overlap
                     string name = item.ProductName;
-                    if (name.Length > 15) name = name.Substring(0, 15) + ".";
+                    int maxNameWidth = 125;
+                    
+                    // Measure how much vertical space the wrapped name will take
+                    SizeF nameSize = g.MeasureString(name, fontBody, maxNameWidth);
+                    
+                    // Draw the wrapped name
+                    RectangleF nameRect = new RectangleF(startX, y + offset, maxNameWidth, nameSize.Height + 5); // Add a small buffer
+                    g.DrawString(name, fontBody, Brushes.Black, nameRect);
 
-                    g.DrawString(name, fontBody, Brushes.Black, startX, y + offset);
+                    // Draw the other columns aligned to the top of this item
                     g.DrawString(item.Quantity.ToString(), fontBody, Brushes.Black, startX + 130, y + offset);
                     g.DrawString(item.PriceAtSale.ToString("N0"), fontBody, Brushes.Black, startX + 170, y + offset);
                     g.DrawString(item.Subtotal.ToString("N2"), fontBody, Brushes.Black, startX + 220, y + offset);
-                    offset += lineOffset;
+                    
+                    // Advance the offset by the height of the name (or at least one line)
+                    int addedHeight = Math.Max(lineOffset, (int)nameSize.Height);
+                    offset += addedHeight + 2; // small gap between items
                 }
 
                 g.DrawString(new string('-', 40), fontBody, Brushes.Black, startX, y + offset);
