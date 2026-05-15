@@ -1266,6 +1266,57 @@ namespace TransFundInventory.Helpers
             
             ws.Range(row, 3, row, 5).Style.NumberFormat.Format = "_([$₱-469]* #,##0.00_);_([$₱-469]* (#,##0.00);_([$₱-469]* \"-\"??_);_(@_)";
             ws.Cell(row, 6).Style.NumberFormat.Format = "0%";
+
+            // ── Signature Block (Eatery) ──
+            if (SessionManager.CurrentSection == "Eatery")
+            {
+                int sigLabelRow = row + 3;
+                int sigNameRow = sigLabelRow + 2; // 1 row gap for signature space
+
+                // Labels
+                ws.Range(sigLabelRow, 1, sigLabelRow, 2).Merge();
+                ws.Cell(sigLabelRow, 1).Value = "PREPARED BY:";
+                ws.Cell(sigLabelRow, 1).Style.Font.Bold = true;
+                ws.Cell(sigLabelRow, 1).Style.Font.FontSize = 9;
+                ws.Cell(sigLabelRow, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+
+                ws.Range(sigLabelRow, 3, sigLabelRow, 4).Merge();
+                ws.Cell(sigLabelRow, 3).Value = "CHECKED BY:";
+                ws.Cell(sigLabelRow, 3).Style.Font.Bold = true;
+                ws.Cell(sigLabelRow, 3).Style.Font.FontSize = 9;
+                ws.Cell(sigLabelRow, 3).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+
+                ws.Range(sigLabelRow, 5, sigLabelRow, 6).Merge();
+                ws.Cell(sigLabelRow, 5).Value = "NOTED BY:";
+                ws.Cell(sigLabelRow, 5).Style.Font.Bold = true;
+                ws.Cell(sigLabelRow, 5).Style.Font.FontSize = 9;
+                ws.Cell(sigLabelRow, 5).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+
+                // Names
+                ws.Range(sigNameRow, 1, sigNameRow, 2).Merge();
+                ws.Cell(sigNameRow, 1).Value = "KENNETH FRANCISCO";
+                ws.Cell(sigNameRow, 1).Style.Font.Bold = true;
+                ws.Cell(sigNameRow, 1).Style.Font.FontSize = 10;
+                ws.Cell(sigNameRow, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                ws.Cell(sigNameRow, 1).Style.Border.TopBorder = XLBorderStyleValues.Thin;
+                ws.Cell(sigNameRow, 1).Style.Border.TopBorderColor = XLColor.Black;
+
+                ws.Range(sigNameRow, 3, sigNameRow, 4).Merge();
+                ws.Cell(sigNameRow, 3).Value = "TRESH DE JESUS";
+                ws.Cell(sigNameRow, 3).Style.Font.Bold = true;
+                ws.Cell(sigNameRow, 3).Style.Font.FontSize = 10;
+                ws.Cell(sigNameRow, 3).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                ws.Cell(sigNameRow, 3).Style.Border.TopBorder = XLBorderStyleValues.Thin;
+                ws.Cell(sigNameRow, 3).Style.Border.TopBorderColor = XLColor.Black;
+
+                ws.Range(sigNameRow, 5, sigNameRow, 6).Merge();
+                ws.Cell(sigNameRow, 5).Value = "ENRIQUE MARTINEZ";
+                ws.Cell(sigNameRow, 5).Style.Font.Bold = true;
+                ws.Cell(sigNameRow, 5).Style.Font.FontSize = 10;
+                ws.Cell(sigNameRow, 5).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                ws.Cell(sigNameRow, 5).Style.Border.TopBorder = XLBorderStyleValues.Thin;
+                ws.Cell(sigNameRow, 5).Style.Border.TopBorderColor = XLColor.Black;
+            }
         }
 
         /// <summary>
