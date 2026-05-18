@@ -1317,6 +1317,77 @@ namespace TransFundInventory.Helpers
                 ws.Cell(sigNameRow, 5).Style.Border.TopBorder = XLBorderStyleValues.Thin;
                 ws.Cell(sigNameRow, 5).Style.Border.TopBorderColor = XLColor.Black;
             }
+            // ── Signature Block (Store) ──
+            else if (SessionManager.CurrentSection == "Store")
+            {
+                int sigLabelRow1 = row + 3;
+                int sigNameRow1 = sigLabelRow1 + 2; // 1 row gap
+
+                int sigLabelRow2 = sigNameRow1 + 3; // 2 rows gap from names to next labels
+                int sigNameRow2 = sigLabelRow2 + 2;
+
+                // --- First Row of Signatures ---
+                // Labels 1
+                ws.Range(sigLabelRow1, 1, sigLabelRow1, 3).Merge();
+                ws.Cell(sigLabelRow1, 1).Value = "PREPARED BY:";
+                ws.Cell(sigLabelRow1, 1).Style.Font.Bold = true;
+                ws.Cell(sigLabelRow1, 1).Style.Font.FontSize = 9;
+                ws.Cell(sigLabelRow1, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+
+                ws.Range(sigLabelRow1, 4, sigLabelRow1, 6).Merge();
+                ws.Cell(sigLabelRow1, 4).Value = "REVIEWED BY:";
+                ws.Cell(sigLabelRow1, 4).Style.Font.Bold = true;
+                ws.Cell(sigLabelRow1, 4).Style.Font.FontSize = 9;
+                ws.Cell(sigLabelRow1, 4).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+
+                // Names 1
+                ws.Range(sigNameRow1, 1, sigNameRow1, 3).Merge();
+                ws.Cell(sigNameRow1, 1).Value = "JUDY PERALTA";
+                ws.Cell(sigNameRow1, 1).Style.Font.Bold = true;
+                ws.Cell(sigNameRow1, 1).Style.Font.FontSize = 10;
+                ws.Cell(sigNameRow1, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                ws.Cell(sigNameRow1, 1).Style.Border.TopBorder = XLBorderStyleValues.Thin;
+                ws.Cell(sigNameRow1, 1).Style.Border.TopBorderColor = XLColor.Black;
+
+                ws.Range(sigNameRow1, 4, sigNameRow1, 6).Merge();
+                ws.Cell(sigNameRow1, 4).Value = "KENNETH FRANCISCO";
+                ws.Cell(sigNameRow1, 4).Style.Font.Bold = true;
+                ws.Cell(sigNameRow1, 4).Style.Font.FontSize = 10;
+                ws.Cell(sigNameRow1, 4).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                ws.Cell(sigNameRow1, 4).Style.Border.TopBorder = XLBorderStyleValues.Thin;
+                ws.Cell(sigNameRow1, 4).Style.Border.TopBorderColor = XLColor.Black;
+
+                // --- Second Row of Signatures ---
+                // Labels 2
+                ws.Range(sigLabelRow2, 1, sigLabelRow2, 3).Merge();
+                ws.Cell(sigLabelRow2, 1).Value = "CHECKED BY:";
+                ws.Cell(sigLabelRow2, 1).Style.Font.Bold = true;
+                ws.Cell(sigLabelRow2, 1).Style.Font.FontSize = 9;
+                ws.Cell(sigLabelRow2, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+
+                ws.Range(sigLabelRow2, 4, sigLabelRow2, 6).Merge();
+                ws.Cell(sigLabelRow2, 4).Value = "NOTED BY:";
+                ws.Cell(sigLabelRow2, 4).Style.Font.Bold = true;
+                ws.Cell(sigLabelRow2, 4).Style.Font.FontSize = 9;
+                ws.Cell(sigLabelRow2, 4).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+
+                // Names 2
+                ws.Range(sigNameRow2, 1, sigNameRow2, 3).Merge();
+                ws.Cell(sigNameRow2, 1).Value = "TRECIA DE JESUS";
+                ws.Cell(sigNameRow2, 1).Style.Font.Bold = true;
+                ws.Cell(sigNameRow2, 1).Style.Font.FontSize = 10;
+                ws.Cell(sigNameRow2, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                ws.Cell(sigNameRow2, 1).Style.Border.TopBorder = XLBorderStyleValues.Thin;
+                ws.Cell(sigNameRow2, 1).Style.Border.TopBorderColor = XLColor.Black;
+
+                ws.Range(sigNameRow2, 4, sigNameRow2, 6).Merge();
+                ws.Cell(sigNameRow2, 4).Value = "ERIQUE DM. MARTINEZ";
+                ws.Cell(sigNameRow2, 4).Style.Font.Bold = true;
+                ws.Cell(sigNameRow2, 4).Style.Font.FontSize = 10;
+                ws.Cell(sigNameRow2, 4).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                ws.Cell(sigNameRow2, 4).Style.Border.TopBorder = XLBorderStyleValues.Thin;
+                ws.Cell(sigNameRow2, 4).Style.Border.TopBorderColor = XLColor.Black;
+            }
         }
 
         /// <summary>
